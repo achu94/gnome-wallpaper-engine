@@ -1,83 +1,106 @@
 # 🌌 GNOME Live Wallpaper Engine
 
-Turn your static GNOME desktop into a dynamic experience. This extension uses **mpv** to play videos, GIFs, and WebM files seamlessly as your background—fully optimized for both **Wayland** and **X11**.
+The **simplest and most reliable way** to use live wallpapers on GNOME — fully compatible with **Wayland & X11**.
+
+Powered by **mpv** for maximum performance, low resource usage, and full format support (MP4, GIF, WebM, MKV…).
+
+If you like this project, consider giving it a star ⭐ — it really helps!
+
+---
+
+## 🎥 Demo
+
+> Live wallpaper running on GNOME (Wayland)
+
+![demo](assets/demo.gif)
 
 ---
 
 ## ✨ Features
 
-- 🎬 **Integrated Gallery:** Browse and select your wallpapers directly from the GNOME Settings.
-- 📥 **Smart Import:** Add videos with a single click. The extension automatically cleans filenames and clones them into your local library.
-- 👻 **Ghost-Mode:** Clicks and keypresses pass through the video to your desktop icons. The wallpaper stays on the bottom layer (DESKTOP).
-- 📐 **No Black Bars:** Uses Panscan logic to zoom and fill your screen perfectly, regardless of the video aspect ratio.
-- 🚀 **GPU Optimized:** Supports hardware acceleration (hwdec=auto) to ensure your system stays fast and responsive.
-- 🔄 **Live Updates:** Switching a wallpaper in the gallery applies the change to your desktop instantly.
+- 🎬 **Integrated Gallery:** Browse and select wallpapers directly from GNOME Settings
+- 📥 **Smart Import:** Add videos with one click
+- 👻 **Ghost Mode:** Click-through support — interact with desktop icons while wallpaper runs
+- 📐 **No Black Bars:** Smart panscan fills the screen perfectly
+- 🚀 **GPU Accelerated:** Uses mpv with `hwdec=auto`
+- ⚡ **Very Low CPU Usage:** Typically ~1–3%
+- 🔄 **Instant Apply:** Switch wallpapers in real-time
+- 🖥️ **Wayland Ready:** Works reliably where most tools fail
+- 📦 **Minimal Setup:** Only requires mpv
+- 🎞️ **Supports All Formats:** MP4, GIF, WebM, MKV and more
 
 ---
 
-## 🛠 Prerequisites
+## 🛠 Requirements
 
-You must have **mpv** installed on your system for the engine to work:
+You only need **mpv** installed:
 
-# Ubuntu / Zorin OS / Debian
+### Ubuntu / Debian / Zorin OS
 
+```bash
 sudo apt update && sudo apt install mpv
+```
 
-# Fedora
+### Fedora
 
+```bash
 sudo dnf install mpv
+```
 
-# Arch Linux
+### Arch Linux
 
+```bash
 sudo pacman -S mpv
+```
 
 ---
 
 ## 🚀 Installation
 
-### 1. Folder Naming (CRITICAL)
+### 1. Clone the Repository
 
-The extension folder **MUST** be named exactly:
-gnome-wallpaper-engine@gjs.com
+```bash
+git clone https://github.com/achu94/gnome-wallpaper-engine.git
+```
 
 ### 2. Move to Extensions Directory
 
-# Clone the repository
-
-git clone https://github.com/achu94/gnome-wallpaper-engine.git
-
-# Create directory
-
+```bash
 mkdir -p ~/.local/share/gnome-shell/extensions/
-
-# Move and rename correctly
-
 cp -r gnome-wallpaper-engine ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
+```
 
 ### 3. Compile GSettings Schemas
 
-The settings won't open unless you compile the schemas:
-
+```bash
 cd ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
 glib-compile-schemas schemas/
+```
 
-### 4. Restart & Enable
+### 4. Restart GNOME Shell
 
-- Wayland (Zorin/Ubuntu): Log out and log back in.
-- X11: Press Alt+F2, type 'r', and hit Enter.
-- Enable the extension using the "Extensions" app.
+- Wayland: Log out and log back in
+- X11: Press `Alt + F2`, type `r`, press Enter
+
+Then enable the extension via the **Extensions** app.
 
 ---
 
-## 📖 How to Use
+## 📖 Usage
 
-1. Open the Extension Settings.
-2. Click "Add Video/GIF" to import your favorite loops.
-3. Select a thumbnail from the gallery.
-4. Start the engine via the Panel Indicator (top-right corner).
+1. Open the extension settings
+2. Click **"Add Video/GIF"**
+3. Select a wallpaper from the gallery
+4. Start via the top panel indicator
+
+---
+
+## 💡 Why this exists
+
+Built to solve the lack of **simple and reliable live wallpaper solutions on GNOME + Wayland**.
 
 ---
 
 ## ⚖️ License
 
-GPL-3.0 — Open Source and free to use.
+GPL-3.0 — free and open source.
