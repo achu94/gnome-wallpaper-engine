@@ -1,0 +1,18 @@
+# 🌌 GNOME Live Wallpaper Engine
+
+Verwandle deinen Desktop in ein lebendiges Meisterwerk. Diese Extension nutzt **mpv**, um Videos, GIFs und WebM-Dateien als Hintergrund abzuspielen – optimiert für Wayland und X11.
+
+## ✨ Features
+- **🎬 Galerie:** Wähle Wallpaper direkt in den GNOME-Einstellungen.
+- **📥 Import:** Automatische Säuberung von Dateinamen beim Hinzufügen.
+- **👻 Ghost-Mode:** Klicks gehen durch das Video auf deine Desktop-Icons.
+- **📐 Smart Scaling:** "Fill"-Modus ohne schwarze Balken.
+- **🚀 Performance:** Hardware-Beschleunigung (GPU) Support.
+
+## 🛠 Installation
+1. Installiere mpv: `sudo apt install mpv`
+2. Kopiere diesen Ordner nach: `~/.local/share/gnome-shell/extensions/`
+3. Logge dich neu ein und aktiviere die Extension.
+
+## ⚖️ Lizenz
+GPL-3.0

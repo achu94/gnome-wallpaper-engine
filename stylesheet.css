@@ -1,0 +1,9 @@
+/* stylesheet.css */
+.card {
+    border-radius: 8px;
+    border: 2px solid transparent;
+}
+
+.card:selected {
+    border-color: #3584e4; /* Blauer Rahmen wenn ausgewählt */
+}

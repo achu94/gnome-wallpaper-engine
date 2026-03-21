@@ -1,0 +1,11 @@
+# Ignoriere alle Videos im Background-Ordner
+backgrounds/*
+
+# Aber behalte den Ordner selbst (falls du eine .gitkeep drin hast)
+!backgrounds/.gitkeep
+
+# Ignoriere kompilierte Einstellungen
+schemas/*.compiled
+
+# System-Müll
+.DS_Store
