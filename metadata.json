@@ -1,12 +1,13 @@
 {
-  "name": "gnome-wallpaper-engine",
-  "description": "high-performance bridge designed to bring the vast library of the Windows-exclusive Wallpaper Engine to the GNOME ecosystem. By bypassing the need for complex workarounds, this tool provides a native-feeling experience for running animated, interactive, and shader-based wallpapers on Linux.",
   "uuid": "gnome-wallpaper-engine@gjs.com",
+  "name": "gnome-wallpaper-engine",
+  "description": "A high-performance bridge bringing animated and interactive wallpaper capabilities to the GNOME ecosystem. Designed to provide a native-feeling experience for running live wallpapers on Linux.",
   "url": "https://github.com/achu94/gnome-wallpaper-engine",
   "shell-version": [
     "45",
     "46",
     "47",
     "48"
-  ]
+  ],
+  "version": 1
 }

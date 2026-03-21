@@ -11,21 +11,18 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         );
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({
-            title: "Live Wallpaper Galerie",
-            description:
-                "Füge neue Videos hinzu oder wähle eines aus der Liste aus.",
+            title: "Live Wallpaper Gallery",
+            description: "Supported: MP4, WebM, MKV, MOV, AVI, GIF",
         });
         page.add(group);
 
-        // --- BUTTON: NEUES VIDEO HINZUFÜGEN ---
         const addButton = new Gtk.Button({
-            label: "Video/GIF hinzufügen",
+            label: "Add Video/GIF",
             icon_name: "list-add-symbolic",
             margin_bottom: 20,
             css_classes: ["suggested-action"],
         });
 
-        // --- GALERIE (FLOWBOX) ---
         const flowBox = new Gtk.FlowBox({
             valign: Gtk.Align.START,
             max_children_per_line: 3,
@@ -36,7 +33,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
             margin_top: 10,
         });
 
-        // FUNKTION: Galerie neu laden
         const refreshGallery = () => {
             let child = flowBox.get_first_child();
             while (child) {
@@ -58,39 +54,36 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                     null,
                 );
                 let info;
-                const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov"];
+                const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
 
                 while ((info = enumerator.next_file(null)) !== null) {
                     let fileName = info.get_name();
-                    if (
-                        supported.some((ext) =>
-                            fileName.toLowerCase().endsWith(ext),
-                        )
-                    ) {
+                    if (supported.some((ext) => fileName.toLowerCase().endsWith(ext))) {
                         let item = this._createWallpaperItem(bgDir, fileName);
                         flowBox.append(item);
                     }
                 }
             } catch (e) {
-                console.error("Fehler beim Laden der Galerie: " + e);
+                console.error(e);
             }
         };
 
-        // EVENT: Datei auswählen und "säubern"
         addButton.connect("clicked", () => {
             const chooser = new Gtk.FileChooserNative({
-                title: "Video Datei auswählen",
+                title: "Select Video or GIF",
                 action: Gtk.FileChooserAction.OPEN,
                 modal: true,
                 transient_for: window,
             });
 
             const filter = new Gtk.FileFilter();
-            filter.set_name("Video-Formate & GIFs");
+            filter.set_name("Wallpapers (Video/GIF)");
             filter.add_mime_type("video/mp4");
             filter.add_mime_type("video/webm");
             filter.add_mime_type("image/gif");
             filter.add_mime_type("video/x-matroska");
+            filter.add_mime_type("video/quicktime");
+            filter.add_mime_type("video/x-msvideo");
             chooser.add_filter(filter);
 
             chooser.connect("response", (res, response_id) => {
@@ -98,17 +91,10 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                     let sourceFile = chooser.get_file();
                     let originalName = sourceFile.get_basename();
 
-                    // --- NAMEN SÄUBERN (Fix für "mp412345" Fehler) ---
-                    let extension = ".mp4"; // Standard-Fallback
-                    if (originalName.toLowerCase().includes(".webm"))
-                        extension = ".webm";
-                    else if (originalName.toLowerCase().includes(".gif"))
-                        extension = ".gif";
-                    else if (originalName.toLowerCase().includes(".mkv"))
-                        extension = ".mkv";
-
-                    // Name vor dem ersten Punkt nehmen und saubere Endung dranhängen
-                    let cleanName = originalName.split(".")[0] + extension;
+                    let lastDotIndex = originalName.lastIndexOf(".");
+                    let extension = lastDotIndex !== -1 ? originalName.substring(lastDotIndex).toLowerCase() : ".mp4";
+                    let basePart = originalName.substring(0, lastDotIndex !== -1 ? lastDotIndex : originalName.length);
+                    let cleanName = basePart + extension;
 
                     let destPath = this.path + "/backgrounds/" + cleanName;
                     let destFile = Gio.File.new_for_path(destPath);
@@ -120,9 +106,9 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                             null,
                             null,
                         );
-                        refreshGallery(); // Galerie sofort aktualisieren
+                        refreshGallery();
                     } catch (e) {
-                        console.error("Kopierfehler: " + e);
+                        console.error(e);
                     }
                 }
                 chooser.destroy();
@@ -131,14 +117,11 @@ export default class WallpaperPrefs extends ExtensionPreferences {
             chooser.show();
         });
 
-        // EVENT: Klick auf ein Item in der Galerie
         flowBox.connect("child-activated", (box, child) => {
             let selectedFile = child.get_child()._fullPath;
             settings.set_string("current-wallpaper", selectedFile);
-            console.log("Wallpaper ausgewählt: " + selectedFile);
         });
 
-        // Initiales Laden beim Öffnen der Einstellungen
         refreshGallery();
 
         group.add(addButton);
@@ -146,7 +129,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         window.add(page);
     }
 
-    // Hilfsfunktion: Erstellt die Kachel für die Galerie
     _createWallpaperItem(dir, fileName) {
         const box = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -155,8 +137,9 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         });
         box._fullPath = fileName;
 
-        // Falls ein .jpg existiert, nutze es als Vorschau
-        let baseName = fileName.substring(0, fileName.lastIndexOf("."));
+        let lastDotIndex = fileName.lastIndexOf(".");
+        let baseName = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
+
         let thumbPath = dir + "/" + baseName + ".jpg";
         let thumbFile = Gio.File.new_for_path(thumbPath);
 

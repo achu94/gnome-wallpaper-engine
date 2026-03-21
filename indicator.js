@@ -6,7 +6,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 export const Indicator = GObject.registerClass(
     class Indicator extends PanelMenu.Button {
         _init(extension) {
-            super._init(0.0, "Wallpaper Bridge");
+            super._init(0.0, "Wallpaper Engine");
             this._extension = extension;
 
             this.add_child(
@@ -22,15 +22,13 @@ export const Indicator = GObject.registerClass(
         _buildMenu() {
             this.menu.removeAll();
 
-            // AKTIVIEREN
-            let playItem = new PopupMenu.PopupMenuItem("▶ Wallpaper Starten");
+            let playItem = new PopupMenu.PopupMenuItem("▶ Start Wallpaper");
             playItem.connect("activate", () => {
                 this._extension.startWallpaper();
             });
             this.menu.addMenuItem(playItem);
 
-            // STOPPEN
-            let stopItem = new PopupMenu.PopupMenuItem("■ Wallpaper Stoppen");
+            let stopItem = new PopupMenu.PopupMenuItem("■ Stop Wallpaper");
             stopItem.connect("activate", () => {
                 this._extension.stopWallpaper();
             });
@@ -38,7 +36,7 @@ export const Indicator = GObject.registerClass(
 
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            let prefsItem = new PopupMenu.PopupMenuItem("Einstellungen...");
+            let prefsItem = new PopupMenu.PopupMenuItem("Settings...");
             prefsItem.connect("activate", () =>
                 this._extension.openPreferences(),
             );

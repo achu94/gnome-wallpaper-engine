@@ -9,15 +9,26 @@ let Cairo;
 try {
     Cairo = (await import("gi://cairo")).default;
 } catch (e) {
-    console.log("Wallpaper Engine: Cairo nicht verfügbar.");
+    console.log("Wallpaper Engine: Cairo not available.");
 }
 
 import { Indicator } from "./indicator.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
+        this._mpvExists = GLib.find_program_in_path('mpv');
+
+        if (!this._mpvExists) {
+            Main.notify(
+                "Gnome Wallpaper Engine",
+                "ERROR: 'mpv' is not installed! Please install it via your terminal."
+            );
+            return;
+        }
+
         this._indicator = new Indicator(this);
         Main.panel.addToStatusArea(this.uuid, this._indicator);
+
         this._settings = this.getSettings(
             "org.gnome.shell.extensions.gnome-wallpaper-engine",
         );
@@ -56,14 +67,9 @@ export default class WallpaperExtension extends Extension {
             "--x11-name=wallpaper_bg",
             "--panscan=1.0",
             "--video-unscaled=no",
-
-            // Verhindert, dass MPV Tastenbefehle annimmt
             "--input-default-bindings=no",
             "--input-vo-keyboard=no",
-
-            // WICHTIG: Diese Zeilen sorgen dafür, dass die Maus bleibt!
-            "--cursor-autohide=no", // Verhindert das Verstecken der Maus
-
+            "--cursor-autohide=no",
             "--hwdec=auto",
             videoPath,
         ];
@@ -85,7 +91,7 @@ export default class WallpaperExtension extends Extension {
             };
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, findWindow);
         } catch (e) {
-            console.error("Wallpaper Engine Fehler: " + e);
+            console.error("Wallpaper Engine Error: " + e);
         }
     }
 
@@ -99,27 +105,18 @@ export default class WallpaperExtension extends Extension {
                 (metaWin.get_title() === "wallpaper_bg" ||
                     metaWin.get_wm_class() === "wallpaper_bg")
             ) {
-                // 1. Desktop-Typ (unterste Ebene)
                 metaWin.set_window_type(Meta.WindowType.DESKTOP);
-
-                // 2. FOKUS-VERBOT (Wichtig für Tasten!)
-                // Das Fenster kann niemals aktiv werden, egal was man drückt
                 metaWin.focus_on_click = false;
-
-                // 3. System-Eigenschaften
                 metaWin.set_skip_taskbar(true);
                 metaWin.stick();
                 metaWin.lower();
 
-                // 4. MAUS-DURCHLASS (Cairo Magic)
                 if (Cairo && Cairo.Region) {
                     try {
                         let emptyRegion = new Cairo.Region();
                         metaWin.set_input_region(emptyRegion);
-                    } catch (e) {}
+                    } catch (e) { }
                 }
-
-                console.log("Wallpaper Engine: Ghost-Modus aktiv.");
                 return true;
             }
         }
@@ -137,8 +134,12 @@ export default class WallpaperExtension extends Extension {
         if (this._settingsSignal)
             this._settings.disconnect(this._settingsSignal);
         this.stopWallpaper();
-        this._indicator.destroy();
-        this._indicator = null;
+
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
+
         this._settings = null;
     }
 }
