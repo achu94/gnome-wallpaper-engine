@@ -1,18 +1,83 @@
 # 🌌 GNOME Live Wallpaper Engine
 
-Verwandle deinen Desktop in ein lebendiges Meisterwerk. Diese Extension nutzt **mpv**, um Videos, GIFs und WebM-Dateien als Hintergrund abzuspielen – optimiert für Wayland und X11.
+Turn your static GNOME desktop into a dynamic experience. This extension uses **mpv** to play videos, GIFs, and WebM files seamlessly as your background—fully optimized for both **Wayland** and **X11**.
+
+---
 
 ## ✨ Features
-- **🎬 Galerie:** Wähle Wallpaper direkt in den GNOME-Einstellungen.
-- **📥 Import:** Automatische Säuberung von Dateinamen beim Hinzufügen.
-- **👻 Ghost-Mode:** Klicks gehen durch das Video auf deine Desktop-Icons.
-- **📐 Smart Scaling:** "Fill"-Modus ohne schwarze Balken.
-- **🚀 Performance:** Hardware-Beschleunigung (GPU) Support.
 
-## 🛠 Installation
-1. Installiere mpv: `sudo apt install mpv`
-2. Kopiere diesen Ordner nach: `~/.local/share/gnome-shell/extensions/`
-3. Logge dich neu ein und aktiviere die Extension.
+- 🎬 **Integrated Gallery:** Browse and select your wallpapers directly from the GNOME Settings.
+- 📥 **Smart Import:** Add videos with a single click. The extension automatically cleans filenames and clones them into your local library.
+- 👻 **Ghost-Mode:** Clicks and keypresses pass through the video to your desktop icons. The wallpaper stays on the bottom layer (DESKTOP).
+- 📐 **No Black Bars:** Uses Panscan logic to zoom and fill your screen perfectly, regardless of the video aspect ratio.
+- 🚀 **GPU Optimized:** Supports hardware acceleration (hwdec=auto) to ensure your system stays fast and responsive.
+- 🔄 **Live Updates:** Switching a wallpaper in the gallery applies the change to your desktop instantly.
 
-## ⚖️ Lizenz
-GPL-3.0
+---
+
+## 🛠 Prerequisites
+
+You must have **mpv** installed on your system for the engine to work:
+
+# Ubuntu / Zorin OS / Debian
+
+sudo apt update && sudo apt install mpv
+
+# Fedora
+
+sudo dnf install mpv
+
+# Arch Linux
+
+sudo pacman -S mpv
+
+---
+
+## 🚀 Installation
+
+### 1. Folder Naming (CRITICAL)
+
+The extension folder **MUST** be named exactly:
+gnome-wallpaper-engine@gjs.com
+
+### 2. Move to Extensions Directory
+
+# Clone the repository
+
+git clone https://github.com/achu94/gnome-wallpaper-engine.git
+
+# Create directory
+
+mkdir -p ~/.local/share/gnome-shell/extensions/
+
+# Move and rename correctly
+
+cp -r gnome-wallpaper-engine ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
+
+### 3. Compile GSettings Schemas
+
+The settings won't open unless you compile the schemas:
+
+cd ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
+glib-compile-schemas schemas/
+
+### 4. Restart & Enable
+
+- Wayland (Zorin/Ubuntu): Log out and log back in.
+- X11: Press Alt+F2, type 'r', and hit Enter.
+- Enable the extension using the "Extensions" app.
+
+---
+
+## 📖 How to Use
+
+1. Open the Extension Settings.
+2. Click "Add Video/GIF" to import your favorite loops.
+3. Select a thumbnail from the gallery.
+4. Start the engine via the Panel Indicator (top-right corner).
+
+---
+
+## ⚖️ License
+
+GPL-3.0 — Open Source and free to use.
