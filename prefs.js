@@ -6,17 +6,16 @@ import Gtk from "gi://Gtk";
 export default class WallpaperPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings(
-            "org.gnome.shell.extensions.gnome-wallpaper-engine",
+            "org.gnome.shell.extensions.gnome-wallpaper-engine"
         );
 
-        // --- PAGE 1: GALLERY (First Tab) ---
         const pageGallery = new Adw.PreferencesPage({
             title: "Gallery",
             icon_name: "folder-videos-symbolic",
         });
 
         const galleryGroup = new Adw.PreferencesGroup({
-            title: "Live Wallpaper Selection",
+            title: "Wallpaper Selection",
             description: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
         });
         pageGallery.add(galleryGroup);
@@ -24,7 +23,7 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         const addButton = new Gtk.Button({
             label: "Add Video/GIF",
             icon_name: "list-add-symbolic",
-            margin_bottom: 20,
+            margin_bottom: 12,
             css_classes: ["suggested-action"],
         });
 
@@ -33,9 +32,8 @@ export default class WallpaperPrefs extends ExtensionPreferences {
             max_children_per_line: 3,
             min_children_per_line: 2,
             selection_mode: Gtk.SelectionMode.SINGLE,
-            row_spacing: 15,
-            column_spacing: 15,
-            margin_top: 10,
+            row_spacing: 12,
+            column_spacing: 12,
         });
 
         const refreshGallery = () => {
@@ -45,27 +43,32 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                 child = flowBox.get_first_child();
             }
 
-            const bgDir = this.path + "/backgrounds";
+            const bgDir = `${this.path}/backgrounds`;
             const directory = Gio.File.new_for_path(bgDir);
 
             if (!directory.query_exists(null)) {
-                directory.make_directory_with_parents(null);
+                try {
+                    directory.make_directory_with_parents(null);
+                } catch (e) {
+                    console.error(e);
+                    return;
+                }
             }
 
             try {
-                let enumerator = directory.enumerate_children(
+                const enumerator = directory.enumerate_children(
                     "standard::name",
                     Gio.FileQueryInfoFlags.NONE,
-                    null,
+                    null
                 );
+
                 let info;
                 const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
 
                 while ((info = enumerator.next_file(null)) !== null) {
-                    let fileName = info.get_name();
-                    if (supported.some((ext) => fileName.toLowerCase().endsWith(ext))) {
-                        let item = this._createWallpaperItem(bgDir, fileName);
-                        flowBox.append(item);
+                    const fileName = info.get_name();
+                    if (supported.some(ext => fileName.toLowerCase().endsWith(ext))) {
+                        flowBox.append(this._createWallpaperItem(bgDir, fileName));
                     }
                 }
             } catch (e) {
@@ -93,10 +96,9 @@ export default class WallpaperPrefs extends ExtensionPreferences {
 
             chooser.connect("response", (res, response_id) => {
                 if (response_id === Gtk.ResponseType.ACCEPT) {
-                    let sourceFile = chooser.get_file();
-                    let originalName = sourceFile.get_basename();
-                    let destPath = this.path + "/backgrounds/" + originalName;
-                    let destFile = Gio.File.new_for_path(destPath);
+                    const sourceFile = chooser.get_file();
+                    const destPath = `${this.path}/backgrounds/${sourceFile.get_basename()}`;
+                    const destFile = Gio.File.new_for_path(destPath);
 
                     try {
                         sourceFile.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null);
@@ -111,8 +113,7 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         });
 
         flowBox.connect("child-activated", (box, child) => {
-            let selectedFile = child.get_child()._fullPath;
-            settings.set_string("current-wallpaper", selectedFile);
+            settings.set_string("current-wallpaper", child.get_child()._fullPath);
         });
 
         refreshGallery();
@@ -120,7 +121,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         galleryGroup.add(flowBox);
         window.add(pageGallery);
 
-        // --- PAGE 2: GENERAL SETTINGS (Second Tab) ---
         const pageGeneral = new Adw.PreferencesPage({
             title: "General",
             icon_name: "preferences-system-symbolic",
@@ -128,17 +128,14 @@ export default class WallpaperPrefs extends ExtensionPreferences {
 
         const behaviorGroup = new Adw.PreferencesGroup({
             title: "Behavior",
-            description: "Configure how the extension starts and displays",
         });
         pageGeneral.add(behaviorGroup);
 
-        // Autostart Row
         const autostartRow = new Adw.ActionRow({
             title: "Autostart",
-            subtitle: "Automatically start the wallpaper when you log in",
+            subtitle: "Start wallpaper on login",
         });
         const autostartSwitch = new Gtk.Switch({
-            active: settings.get_boolean("autostart"),
             valign: Gtk.Align.CENTER,
         });
         settings.bind("autostart", autostartSwitch, "active", Gio.SettingsBindFlags.DEFAULT);
@@ -146,13 +143,11 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         autostartRow.activatable_widget = autostartSwitch;
         behaviorGroup.add(autostartRow);
 
-        // Tray Icon Row
         const indicatorRow = new Adw.ActionRow({
-            title: "Show Tray Icon",
-            subtitle: "Display the icon in the top panel",
+            title: "Tray Icon",
+            subtitle: "Show icon in the top panel",
         });
         const indicatorSwitch = new Gtk.Switch({
-            active: settings.get_boolean("show-indicator"),
             valign: Gtk.Align.CENTER,
         });
         settings.bind("show-indicator", indicatorSwitch, "active", Gio.SettingsBindFlags.DEFAULT);
@@ -171,10 +166,10 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         });
         box._fullPath = fileName;
 
-        let lastDotIndex = fileName.lastIndexOf(".");
-        let baseName = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
-        let thumbPath = dir + "/" + baseName + ".jpg";
-        let thumbFile = Gio.File.new_for_path(thumbPath);
+        const lastDot = fileName.lastIndexOf(".");
+        const baseName = lastDot !== -1 ? fileName.substring(0, lastDot) : fileName;
+        const thumbPath = `${dir}/${baseName}.jpg`;
+        const thumbFile = Gio.File.new_for_path(thumbPath);
 
         let image;
         if (thumbFile.query_exists(null)) {
@@ -182,18 +177,18 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         } else {
             image = new Gtk.Image({
                 icon_name: "video-x-generic-symbolic",
-                pixel_size: 64,
+                pixel_size: 48,
             });
         }
 
-        image.set_size_request(180, 100);
+        image.set_size_request(160, 90);
         if (image instanceof Gtk.Picture) {
             image.set_content_fit(Gtk.ContentFit.COVER);
         }
 
         const label = new Gtk.Label({
             label: baseName,
-            max_width_chars: 15,
+            max_width_chars: 12,
             ellipsize: 3,
             halign: Gtk.Align.CENTER,
         });

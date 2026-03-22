@@ -13,7 +13,7 @@ export const Indicator = GObject.registerClass(
                 new St.Icon({
                     icon_name: "video-display-symbolic",
                     style_class: "system-status-icon",
-                }),
+                })
             );
 
             this._buildMenu();
@@ -22,13 +22,13 @@ export const Indicator = GObject.registerClass(
         _buildMenu() {
             this.menu.removeAll();
 
-            let playItem = new PopupMenu.PopupMenuItem("▶ Start Wallpaper");
+            const playItem = new PopupMenu.PopupMenuItem("Start Wallpaper");
             playItem.connect("activate", () => {
                 this._extension.startWallpaper();
             });
             this.menu.addMenuItem(playItem);
 
-            let stopItem = new PopupMenu.PopupMenuItem("■ Stop Wallpaper");
+            const stopItem = new PopupMenu.PopupMenuItem("Stop Wallpaper");
             stopItem.connect("activate", () => {
                 this._extension.stopWallpaper();
             });
@@ -36,11 +36,16 @@ export const Indicator = GObject.registerClass(
 
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            let prefsItem = new PopupMenu.PopupMenuItem("Settings...");
-            prefsItem.connect("activate", () =>
-                this._extension.openPreferences(),
-            );
+            const prefsItem = new PopupMenu.PopupMenuItem("Settings");
+            prefsItem.connect("activate", () => {
+                this._extension.openPreferences();
+            });
             this.menu.addMenuItem(prefsItem);
         }
-    },
+
+        destroy() {
+            this._extension = null;
+            super.destroy();
+        }
+    }
 );
