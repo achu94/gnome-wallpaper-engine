@@ -2,6 +2,10 @@
 <schemalist>
     <schema id="org.gnome.shell.extensions.gnome-wallpaper-engine"
         path="/org/gnome/shell/extensions/gnome-wallpaper-engine/">
+        <key name="autostart" type="b">
+            <default>true</default>
+            <summary>Autostart the wallpaper</summary>
+        </key>
         <key name="current-wallpaper" type="s">
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>

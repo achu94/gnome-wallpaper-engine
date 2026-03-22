@@ -2,7 +2,6 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import Shell from "gi://Shell";
 import Meta from "gi://Meta";
 
 let Cairo;
@@ -36,11 +35,29 @@ export default class WallpaperExtension extends Extension {
         this._settingsSignal = this._settings.connect(
             "changed::current-wallpaper",
             () => {
-                if (this._mpvProcess) this.startWallpaper();
+                // Restart wallpaper when setting changes
+                this.startWallpaper();
             },
         );
 
         this._mpvProcess = null;
+        this._autoStartTimeout = null;
+
+        // Delay initial start slightly to ensure GNOME Shell is ready
+        this._autoStartTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            // Wir lesen den Boolean-Wert aus den Settings
+            let shouldAutostart = this._settings.get_boolean("autostart");
+
+            if (shouldAutostart) {
+                console.log("Wallpaper Engine: Autostart is enabled. Launching...");
+                this.startWallpaper();
+            } else {
+                console.log("Wallpaper Engine: Autostart is disabled by user.");
+            }
+
+            this._autoStartTimeout = null;
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     startWallpaper() {
@@ -75,21 +92,30 @@ export default class WallpaperExtension extends Extension {
         ];
 
         try {
-            this._mpvProcess = Gio.Subprocess.new(
-                cmd,
-                Gio.SubprocessFlags.NONE,
-            );
+            this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
 
+            // Instead of one fixed delay, we check every 200ms if the window exists
             let attempts = 0;
             const findWindow = () => {
+                if (!this._mpvProcess) return GLib.SOURCE_REMOVE;
+
                 let found = this._applyWindowRules();
                 attempts++;
-                if (!found && attempts < 20) {
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, findWindow);
+
+                if (found) {
+                    console.log("Wallpaper Engine: Window found and rules applied.");
+                    return GLib.SOURCE_REMOVE;
                 }
-                return GLib.SOURCE_REMOVE;
+
+                if (attempts >= 30) { // Stop after ~6 seconds
+                    console.log("Wallpaper Engine: Search timeout.");
+                    return GLib.SOURCE_REMOVE;
+                }
+
+                return GLib.SOURCE_CONTINUE; // Try again in 200ms
             };
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, findWindow);
+
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, findWindow);
         } catch (e) {
             console.error("Wallpaper Engine Error: " + e);
         }
@@ -131,8 +157,14 @@ export default class WallpaperExtension extends Extension {
     }
 
     disable() {
+        if (this._autoStartTimeout) {
+            GLib.source_remove(this._autoStartTimeout);
+            this._autoStartTimeout = null;
+        }
+
         if (this._settingsSignal)
             this._settings.disconnect(this._settingsSignal);
+
         this.stopWallpaper();
 
         if (this._indicator) {

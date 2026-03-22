@@ -10,6 +10,37 @@ export default class WallpaperPrefs extends ExtensionPreferences {
             "org.gnome.shell.extensions.gnome-wallpaper-engine",
         );
         const page = new Adw.PreferencesPage();
+
+        // --- NEW: GENERAL SETTINGS SECTION ---
+        const generalGroup = new Adw.PreferencesGroup({
+            title: "Behavior",
+            description: "Control how the engine behaves on startup",
+        });
+        page.add(generalGroup);
+
+        const autostartRow = new Adw.ActionRow({
+            title: "Autostart",
+            subtitle: "Automatically start the wallpaper when you log in",
+        });
+
+        const autostartSwitch = new Gtk.Switch({
+            active: settings.get_boolean("autostart"),
+            valign: Gtk.Align.CENTER,
+        });
+
+        // Bind the switch directly to GSettings
+        settings.bind(
+            "autostart",
+            autostartSwitch,
+            "active",
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        autostartRow.add_suffix(autostartSwitch);
+        autostartRow.activatable_widget = autostartSwitch;
+        generalGroup.add(autostartRow);
+
+        // --- GALLERY SECTION (Dein bisheriger Code) ---
         const group = new Adw.PreferencesGroup({
             title: "Live Wallpaper Gallery",
             description: "Supported: MP4, WebM, MKV, MOV, AVI, GIF",
