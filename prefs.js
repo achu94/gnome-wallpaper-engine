@@ -2,50 +2,24 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
-import GObject from "gi://GObject";
 
 export default class WallpaperPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings(
             "org.gnome.shell.extensions.gnome-wallpaper-engine",
         );
-        const page = new Adw.PreferencesPage();
 
-        // --- NEW: GENERAL SETTINGS SECTION ---
-        const generalGroup = new Adw.PreferencesGroup({
-            title: "Behavior",
-            description: "Control how the engine behaves on startup",
-        });
-        page.add(generalGroup);
-
-        const autostartRow = new Adw.ActionRow({
-            title: "Autostart",
-            subtitle: "Automatically start the wallpaper when you log in",
+        // --- PAGE 1: GALLERY (First Tab) ---
+        const pageGallery = new Adw.PreferencesPage({
+            title: "Gallery",
+            icon_name: "folder-videos-symbolic",
         });
 
-        const autostartSwitch = new Gtk.Switch({
-            active: settings.get_boolean("autostart"),
-            valign: Gtk.Align.CENTER,
+        const galleryGroup = new Adw.PreferencesGroup({
+            title: "Live Wallpaper Selection",
+            description: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
         });
-
-        // Bind the switch directly to GSettings
-        settings.bind(
-            "autostart",
-            autostartSwitch,
-            "active",
-            Gio.SettingsBindFlags.DEFAULT
-        );
-
-        autostartRow.add_suffix(autostartSwitch);
-        autostartRow.activatable_widget = autostartSwitch;
-        generalGroup.add(autostartRow);
-
-        // --- GALLERY SECTION (Dein bisheriger Code) ---
-        const group = new Adw.PreferencesGroup({
-            title: "Live Wallpaper Gallery",
-            description: "Supported: MP4, WebM, MKV, MOV, AVI, GIF",
-        });
-        page.add(group);
+        pageGallery.add(galleryGroup);
 
         const addButton = new Gtk.Button({
             label: "Add Video/GIF",
@@ -121,22 +95,11 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                 if (response_id === Gtk.ResponseType.ACCEPT) {
                     let sourceFile = chooser.get_file();
                     let originalName = sourceFile.get_basename();
-
-                    let lastDotIndex = originalName.lastIndexOf(".");
-                    let extension = lastDotIndex !== -1 ? originalName.substring(lastDotIndex).toLowerCase() : ".mp4";
-                    let basePart = originalName.substring(0, lastDotIndex !== -1 ? lastDotIndex : originalName.length);
-                    let cleanName = basePart + extension;
-
-                    let destPath = this.path + "/backgrounds/" + cleanName;
+                    let destPath = this.path + "/backgrounds/" + originalName;
                     let destFile = Gio.File.new_for_path(destPath);
 
                     try {
-                        sourceFile.copy(
-                            destFile,
-                            Gio.FileCopyFlags.OVERWRITE,
-                            null,
-                            null,
-                        );
+                        sourceFile.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null);
                         refreshGallery();
                     } catch (e) {
                         console.error(e);
@@ -144,7 +107,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
                 }
                 chooser.destroy();
             });
-
             chooser.show();
         });
 
@@ -154,10 +116,51 @@ export default class WallpaperPrefs extends ExtensionPreferences {
         });
 
         refreshGallery();
+        galleryGroup.add(addButton);
+        galleryGroup.add(flowBox);
+        window.add(pageGallery);
 
-        group.add(addButton);
-        group.add(flowBox);
-        window.add(page);
+        // --- PAGE 2: GENERAL SETTINGS (Second Tab) ---
+        const pageGeneral = new Adw.PreferencesPage({
+            title: "General",
+            icon_name: "preferences-system-symbolic",
+        });
+
+        const behaviorGroup = new Adw.PreferencesGroup({
+            title: "Behavior",
+            description: "Configure how the extension starts and displays",
+        });
+        pageGeneral.add(behaviorGroup);
+
+        // Autostart Row
+        const autostartRow = new Adw.ActionRow({
+            title: "Autostart",
+            subtitle: "Automatically start the wallpaper when you log in",
+        });
+        const autostartSwitch = new Gtk.Switch({
+            active: settings.get_boolean("autostart"),
+            valign: Gtk.Align.CENTER,
+        });
+        settings.bind("autostart", autostartSwitch, "active", Gio.SettingsBindFlags.DEFAULT);
+        autostartRow.add_suffix(autostartSwitch);
+        autostartRow.activatable_widget = autostartSwitch;
+        behaviorGroup.add(autostartRow);
+
+        // Tray Icon Row
+        const indicatorRow = new Adw.ActionRow({
+            title: "Show Tray Icon",
+            subtitle: "Display the icon in the top panel",
+        });
+        const indicatorSwitch = new Gtk.Switch({
+            active: settings.get_boolean("show-indicator"),
+            valign: Gtk.Align.CENTER,
+        });
+        settings.bind("show-indicator", indicatorSwitch, "active", Gio.SettingsBindFlags.DEFAULT);
+        indicatorRow.add_suffix(indicatorSwitch);
+        indicatorRow.activatable_widget = indicatorSwitch;
+        behaviorGroup.add(indicatorRow);
+
+        window.add(pageGeneral);
     }
 
     _createWallpaperItem(dir, fileName) {
@@ -170,7 +173,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
 
         let lastDotIndex = fileName.lastIndexOf(".");
         let baseName = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
-
         let thumbPath = dir + "/" + baseName + ".jpg";
         let thumbFile = Gio.File.new_for_path(thumbPath);
 

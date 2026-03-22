@@ -25,17 +25,26 @@ export default class WallpaperExtension extends Extension {
             return;
         }
 
-        this._indicator = new Indicator(this);
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
-
         this._settings = this.getSettings(
             "org.gnome.shell.extensions.gnome-wallpaper-engine",
         );
 
+        // --- INDICATOR / TRAY ICON LOGIC ---
+        this._indicator = null;
+
+        // Listen for changes in the "show-indicator" setting
+        this._indicatorSignal = this._settings.connect(
+            "changed::show-indicator",
+            () => this._updateIndicatorVisibility()
+        );
+
+        // Initial check for indicator visibility
+        this._updateIndicatorVisibility();
+
+        // Signal for wallpaper changes
         this._settingsSignal = this._settings.connect(
             "changed::current-wallpaper",
             () => {
-                // Restart wallpaper when setting changes
                 this.startWallpaper();
             },
         );
@@ -43,21 +52,35 @@ export default class WallpaperExtension extends Extension {
         this._mpvProcess = null;
         this._autoStartTimeout = null;
 
-        // Delay initial start slightly to ensure GNOME Shell is ready
+        // ISSUE #1: AUTO-START LOGIC
         this._autoStartTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            // Wir lesen den Boolean-Wert aus den Settings
             let shouldAutostart = this._settings.get_boolean("autostart");
-
             if (shouldAutostart) {
-                console.log("Wallpaper Engine: Autostart is enabled. Launching...");
+                console.log("Wallpaper Engine: Autostarting...");
                 this.startWallpaper();
-            } else {
-                console.log("Wallpaper Engine: Autostart is disabled by user.");
             }
-
             this._autoStartTimeout = null;
             return GLib.SOURCE_REMOVE;
         });
+    }
+
+    // Helper to show or hide the tray icon on the fly
+    _updateIndicatorVisibility() {
+        const show = this._settings.get_boolean("show-indicator");
+
+        if (show) {
+            if (!this._indicator) {
+                this._indicator = new Indicator(this);
+                Main.panel.addToStatusArea(this.uuid, this._indicator);
+                console.log("Wallpaper Engine: Tray icon shown.");
+            }
+        } else {
+            if (this._indicator) {
+                this._indicator.destroy();
+                this._indicator = null;
+                console.log("Wallpaper Engine: Tray icon hidden.");
+            }
+        }
     }
 
     startWallpaper() {
@@ -94,7 +117,6 @@ export default class WallpaperExtension extends Extension {
         try {
             this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
 
-            // Instead of one fixed delay, we check every 200ms if the window exists
             let attempts = 0;
             const findWindow = () => {
                 if (!this._mpvProcess) return GLib.SOURCE_REMOVE;
@@ -103,16 +125,14 @@ export default class WallpaperExtension extends Extension {
                 attempts++;
 
                 if (found) {
-                    console.log("Wallpaper Engine: Window found and rules applied.");
                     return GLib.SOURCE_REMOVE;
                 }
 
-                if (attempts >= 30) { // Stop after ~6 seconds
-                    console.log("Wallpaper Engine: Search timeout.");
+                if (attempts >= 30) {
                     return GLib.SOURCE_REMOVE;
                 }
 
-                return GLib.SOURCE_CONTINUE; // Try again in 200ms
+                return GLib.SOURCE_CONTINUE;
             };
 
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, findWindow);
@@ -164,6 +184,9 @@ export default class WallpaperExtension extends Extension {
 
         if (this._settingsSignal)
             this._settings.disconnect(this._settingsSignal);
+
+        if (this._indicatorSignal)
+            this._settings.disconnect(this._indicatorSignal);
 
         this.stopWallpaper();
 

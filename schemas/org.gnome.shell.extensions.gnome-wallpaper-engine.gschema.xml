@@ -6,6 +6,10 @@
             <default>true</default>
             <summary>Autostart the wallpaper</summary>
         </key>
+        <key name="show-indicator" type="b">
+            <default>true</default>
+            <summary>Show or hide the tray icon</summary>
+        </key>
         <key name="current-wallpaper" type="s">
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
