@@ -2,14 +2,6 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import Meta from "gi://Meta";
-
-let Cairo;
-try {
-    Cairo = (await import("gi://cairo")).default;
-} catch (e) {
-    console.log("Wallpaper Engine: Cairo not available.");
-}
 
 import { Indicator } from "./indicator.js";
 
@@ -28,6 +20,10 @@ export default class WallpaperExtension extends Extension {
         this._mpvProcess = null;
         this._autoStartTimeoutId = null;
         this._findWindowTimeoutId = null;
+
+        this._wallpaperWindow = null;
+        this._raisedSignalId = null;
+        this._windowCreatedId = null;
 
         this._indicatorSignalId = this._settings.connect(
             "changed::show-indicator",
@@ -51,6 +47,7 @@ export default class WallpaperExtension extends Extension {
 
     _updateIndicatorVisibility() {
         const show = this._settings.get_boolean("show-indicator");
+
         if (show && !this._indicator) {
             this._indicator = new Indicator(this);
             Main.panel.addToStatusArea(this.uuid, this._indicator);
@@ -68,11 +65,14 @@ export default class WallpaperExtension extends Extension {
 
         const videoPath = GLib.build_filenamev([this.path, "backgrounds", filename]);
 
-        let cmd = [
+        const cmd = [
             "mpv",
             "--no-border",
             "--loop=inf",
             "--no-audio",
+            "--force-window=yes",
+            "--ontop=no",
+            "--keep-open=yes",
             "--geometry=100%x100%",
             "--no-osc",
             "--no-osd-bar",
@@ -91,6 +91,7 @@ export default class WallpaperExtension extends Extension {
             this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
 
             let attempts = 0;
+
             const findWindow = () => {
                 if (!this._mpvProcess) {
                     this._findWindowTimeoutId = null;
@@ -108,34 +109,83 @@ export default class WallpaperExtension extends Extension {
                 return GLib.SOURCE_CONTINUE;
             };
 
-            this._findWindowTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, findWindow);
+            this._findWindowTimeoutId = GLib.timeout_add(
+                GLib.PRIORITY_DEFAULT,
+                150,
+                findWindow
+            );
+
         } catch (e) {
-            console.error(e);
+            logError(e);
         }
     }
 
     _applyWindowRules() {
         const windows = global.get_window_actors();
+
         for (const actor of windows) {
             const metaWin = actor.get_meta_window();
-            if (metaWin && (metaWin.get_title() === "wallpaper_bg" || metaWin.get_wm_class() === "wallpaper_bg")) {
-                metaWin.set_window_type(Meta.WindowType.DESKTOP);
-                metaWin.make_below();
+
+            if (
+                metaWin &&
+                (metaWin.get_title() === "wallpaper_bg" ||
+                    metaWin.get_wm_class() === "wallpaper_bg")
+            ) {
+                const isWayland = Meta.is_wayland_compositor();
+
+                // Base behavior (works on both)
                 metaWin.lower();
-                metaWin.focus_on_click = false;
-                metaWin.set_skip_taskbar(true);
                 metaWin.stick();
 
+                metaWin.focus_on_click = false;
+
+                try {
+                    metaWin.set_accept_focus(false);
+                } catch (_) { }
+
+                // Click-through
                 GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    if (metaWin) {
+                    try {
                         metaWin.set_input_region(null);
-                    }
+                    } catch (_) { }
                     return GLib.SOURCE_REMOVE;
                 });
 
+                // X11-only improvements
+                if (!isWayland) {
+                    try {
+                        metaWin.make_below();
+                    } catch (_) { }
+
+                    try {
+                        metaWin.set_skip_taskbar(true);
+                    } catch (_) { }
+
+                    try {
+                        metaWin.set_window_type(Meta.WindowType.DESKTOP);
+                    } catch (_) { }
+                }
+
+                // Connect signals
+                if (!this._wallpaperWindow) {
+                    this._wallpaperWindow = metaWin;
+
+                    this._raisedSignalId = metaWin.connect('raised', () => {
+                        metaWin.lower();
+                    });
+
+                    this._windowCreatedId = global.display.connect('window-created', () => {
+                        if (this._wallpaperWindow) {
+                            this._wallpaperWindow.lower();
+                        }
+                    });
+                }
+
                 return true;
             }
+
         }
+
         return false;
     }
 
@@ -144,6 +194,18 @@ export default class WallpaperExtension extends Extension {
             this._mpvProcess.force_exit();
             this._mpvProcess = null;
         }
+
+        if (this._raisedSignalId && this._wallpaperWindow) {
+            this._wallpaperWindow.disconnect(this._raisedSignalId);
+            this._raisedSignalId = null;
+        }
+
+        if (this._windowCreatedId) {
+            global.display.disconnect(this._windowCreatedId);
+            this._windowCreatedId = null;
+        }
+
+        this._wallpaperWindow = null;
     }
 
     disable() {
@@ -151,6 +213,7 @@ export default class WallpaperExtension extends Extension {
             GLib.source_remove(this._autoStartTimeoutId);
             this._autoStartTimeoutId = null;
         }
+
         if (this._findWindowTimeoutId) {
             GLib.source_remove(this._findWindowTimeoutId);
             this._findWindowTimeoutId = null;
@@ -160,6 +223,7 @@ export default class WallpaperExtension extends Extension {
             this._settings.disconnect(this._settingsSignalId);
             this._settingsSignalId = null;
         }
+
         if (this._indicatorSignalId) {
             this._settings.disconnect(this._indicatorSignalId);
             this._indicatorSignalId = null;
