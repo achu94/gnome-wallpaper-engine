@@ -46,6 +46,8 @@ It helps me improve the project and keeps me motivated to work on it 🙏
 - 🎛️ Advanced playback settings (loop modes, speed, etc.)
 - 🎨 Future rendering engine (without mpv)
 
+---
+
 ## 🛠 Requirements
 
 You only need **mpv** installed:
@@ -70,34 +72,44 @@ sudo pacman -S mpv
 
 ---
 
-## 🚀 Installation
+## 📦 Installation
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/achu94/gnome-wallpaper-engine.git
-```
-
-### 2. Move to Extensions Directory
+### ⚡ Quick Install (Recommended)
 
 ```bash
-mkdir -p ~/.local/share/gnome-shell/extensions/
-cp -r gnome-wallpaper-engine ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
+gnome-extensions install gnome-wallpaper-engine@gjs.com.zip
 ```
 
-### 3. Compile GSettings Schemas
-
-```bash
-cd ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com
-glib-compile-schemas schemas/
-```
-
-### 4. Restart GNOME Shell
+Then:
 
 - Wayland: Log out and log back in
 - X11: Press `Alt + F2`, type `r`, press Enter
 
-Then enable the extension via the **Extensions** app.
+Finally, enable the extension using the **Extensions** app  
+(or via the top panel indicator if enabled).
+
+---
+
+### 🧩 Manual Install
+
+1. Download the ZIP file from the latest release
+2. Extract it to:
+
+```
+~/.local/share/gnome-shell/extensions/
+```
+
+3. Make sure the folder is named:
+
+```
+gnome-wallpaper-engine@gjs.com
+```
+
+4. Restart GNOME Shell
+    - Wayland: Log out and log back in
+    - X11: Press `Alt + F2`, type `r`, press Enter
+
+5. Enable the extension using the **Extensions** app
 
 ---
 
@@ -106,8 +118,9 @@ Then enable the extension via the **Extensions** app.
 1. Open the extension settings
 2. Click **"Add Video/GIF"**
 3. Select a wallpaper from the gallery
-4. Optionally Use the top panel indicator to start or stop playback
-5. Optionally, hide the tray icon from the settings
+4. Wallpapers are applied instantly
+5. Optionally use the top panel indicator to start or stop playback
+6. Optionally hide the tray icon from the settings
 
 ---
 
