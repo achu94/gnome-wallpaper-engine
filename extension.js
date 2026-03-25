@@ -1,9 +1,10 @@
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { Indicator } from "./indicator.js";
+import { Wallpaper } from "./modules/wallpaper.js";
+import { AutoPause } from "./modules/autoPause.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
@@ -17,14 +18,7 @@ export default class WallpaperExtension extends Extension {
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
 
         this._indicator = null;
-        this._mpvProcess = null;
-        this._autoStartTimeoutId = null;
-        this._findWindowTimeoutId = null;
-
-        this._wallpaperWindow = null;
-        this._raisedSignalId = null;
-        this._windowCreatedId = null;
-        this._lowerFixApplied = false;
+        this._wallpaper = new Wallpaper(this);
 
         this._indicatorSignalId = this._settings.connect(
             "changed::show-indicator",
@@ -34,16 +28,18 @@ export default class WallpaperExtension extends Extension {
 
         this._settingsSignalId = this._settings.connect(
             "changed::current-wallpaper",
-            () => this.startWallpaper()
+            () => this._wallpaper.start()
         );
 
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             if (this._settings.get_boolean("autostart")) {
-                this.startWallpaper();
+                this._wallpaper.start();
             }
-            this._autoStartTimeoutId = null;
             return GLib.SOURCE_REMOVE;
         });
+        
+        this._autoPause = new AutoPause(this, this._wallpaper);
+        this._autoPause.start();
     }
 
     _updateIndicatorVisibility() {
@@ -58,158 +54,10 @@ export default class WallpaperExtension extends Extension {
         }
     }
 
-    startWallpaper() {
-        this.stopWallpaper();
-
-        const filename = this._settings.get_string("current-wallpaper");
-        if (!filename) return;
-
-        const videoPath = GLib.build_filenamev([this.path, "backgrounds", filename]);
-
-        const cmd = [
-            "mpv",
-            "--no-border",
-            "--loop=inf",
-            "--no-audio",
-            "--force-window=yes",
-            "--ontop=no",
-            "--keep-open=yes",
-            "--geometry=100%x100%",
-            "--no-osc",
-            "--no-osd-bar",
-            "--title=wallpaper_bg",
-            "--x11-name=wallpaper_bg",
-            "--panscan=1.0",
-            "--video-unscaled=no",
-            "--input-default-bindings=no",
-            "--input-vo-keyboard=no",
-            "--cursor-autohide=no",
-            "--hwdec=auto",
-            videoPath,
-        ];
-
-        try {
-            this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
-
-            let attempts = 0;
-
-            const findWindow = () => {
-                if (!this._mpvProcess) {
-                    this._findWindowTimeoutId = null;
-                    return GLib.SOURCE_REMOVE;
-                }
-
-                const found = this._applyWindowRules();
-                attempts++;
-
-                if (found || attempts >= 40) {
-                    this._findWindowTimeoutId = null;
-                    return GLib.SOURCE_REMOVE;
-                }
-
-                return GLib.SOURCE_CONTINUE;
-            };
-
-            this._findWindowTimeoutId = GLib.timeout_add(
-                GLib.PRIORITY_DEFAULT,
-                150,
-                findWindow
-            );
-
-        } catch (e) {
-            logError(e);
-        }
-    }
-
-    _applyWindowRules() {
-        const windows = global.get_window_actors();
-
-        for (const actor of windows) {
-            const metaWin = actor.get_meta_window();
-
-            if (
-                metaWin &&
-                (metaWin.get_title() === "wallpaper_bg" ||
-                    metaWin.get_wm_class() === "wallpaper_bg")
-            ) {
-                metaWin.lower();
-                metaWin.stick();
-                metaWin.focus_on_click = false;
-
-                try {
-                    metaWin.set_accept_focus(false);
-                } catch (_) { }
-
-                // Ensure it really stays below after mapping
-                if (!this._lowerFixApplied) {
-                    this._lowerFixApplied = true;
-
-                    let count = 0;
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                        if (metaWin) metaWin.lower();
-                        count++;
-                        return count < 5;
-                    });
-                }
-
-                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    try {
-                        metaWin.set_input_region(null);
-                    } catch (_) { }
-                    return GLib.SOURCE_REMOVE;
-                });
-
-                if (!this._wallpaperWindow) {
-                    this._wallpaperWindow = metaWin;
-
-                    this._raisedSignalId = metaWin.connect('raised', () => {
-                        metaWin.lower();
-                    });
-
-                    this._windowCreatedId = global.display.connect('window-created', () => {
-                        if (this._wallpaperWindow) {
-                            this._wallpaperWindow.lower();
-                        }
-                    });
-                }
-
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    stopWallpaper() {
-        if (this._mpvProcess) {
-            this._mpvProcess.force_exit();
-            this._mpvProcess = null;
-        }
-
-        this._lowerFixApplied = false;
-
-        if (this._raisedSignalId && this._wallpaperWindow) {
-            this._wallpaperWindow.disconnect(this._raisedSignalId);
-            this._raisedSignalId = null;
-        }
-
-        if (this._windowCreatedId) {
-            global.display.disconnect(this._windowCreatedId);
-            this._windowCreatedId = null;
-        }
-
-        this._wallpaperWindow = null;
-    }
-
     disable() {
         if (this._autoStartTimeoutId) {
             GLib.source_remove(this._autoStartTimeoutId);
             this._autoStartTimeoutId = null;
-        }
-
-        if (this._findWindowTimeoutId) {
-            GLib.source_remove(this._findWindowTimeoutId);
-            this._findWindowTimeoutId = null;
         }
 
         if (this._settingsSignalId) {
@@ -222,11 +70,19 @@ export default class WallpaperExtension extends Extension {
             this._indicatorSignalId = null;
         }
 
-        this.stopWallpaper();
+        if (this._wallpaper) {
+            this._wallpaper.stop();
+            this._wallpaper = null;
+        }
 
         if (this._indicator) {
             this._indicator.destroy();
             this._indicator = null;
+        }
+
+        if (this._autoPause) {
+            this._autoPause.stop();
+            this._autoPause = null;
         }
 
         this._settings = null;

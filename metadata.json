@@ -11,5 +11,6 @@
     "49"
   ],
   "settings-schema": "org.gnome.shell.extensions.gnome-wallpaper-engine",
-  "version": 2
+  "donate": "https://ko-fi.com/achu94",
+  "version": 1
 }

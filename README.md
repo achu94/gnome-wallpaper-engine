@@ -25,7 +25,8 @@ It helps me improve the project and keeps me motivated to work on it 🙏
 ## ✨ Features
 
 - 🎬 **Integrated Gallery:** Browse and select wallpapers directly from GNOME Settings
-- 📥 **Smart Import:** Add videos with one click
+- 🖼️ **Thumbnail Previews:** Automatically generated previews for all wallpapers
+- 📥 **Smart Import:** Add videos with one click and apply instantly
 - 🚀 **GPU Accelerated (enabled by default):** Uses mpv with `hwdec=auto`
 - ⚡ **Very Low CPU Usage:** Typically ~1–3%
 - 🔄 **Instant Apply:** Switch wallpapers in real-time
@@ -34,18 +35,16 @@ It helps me improve the project and keeps me motivated to work on it 🙏
 - 🎞️ **Wide Format Support:** MP4, GIF, WebM, MKV and more
 - 🔁 **Autostart:** Automatically start wallpaper on login
 - 🧩 **Tray Icon Toggle:** Show or hide the top panel indicator
+- ⏸️ **Auto Pause (Fullscreen):** Pauses when a fullscreen app is active
+- 🔋 **Auto Pause (Battery):** Pauses when running on battery to save power
 
 ---
 
 ## 🚧 Roadmap
 
-⏸️ Auto-pause when a fullscreen app is active
-
-🖼️ Improved gallery with automatic thumbnails
-
-🎮 Steam Wallpaper Engine integration (auto-detect and list compatible wallpapers)
-
----
+- 🎮 Steam Wallpaper Engine integration (auto-detect and list compatible wallpapers)
+- 🎛️ Advanced playback settings (loop modes, speed, etc.)
+- 🎨 Future rendering engine (without mpv)
 
 ## 🛠 Requirements
 
