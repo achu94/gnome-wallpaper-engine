@@ -23,9 +23,5 @@
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
         </key>
-        <key name="wallpaper-mode" type="s">
-            <default>'video'</default>
-            <summary>Modus: video, web oder shader</summary>
-        </key>
     </schema>
 </schemalist>
