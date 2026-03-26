@@ -32,7 +32,7 @@ export default class WallpaperExtension extends Extension {
         );
 
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            if (this._settings.get_boolean("autostart")) {
+            if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
             }
             return GLib.SOURCE_REMOVE;
