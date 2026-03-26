@@ -16,7 +16,7 @@
         </key>
 
         <key name="pause-on-battery" type="b">
-            <default>true</default>
+            <default>false</default>
             <summary>Pause when running on battery</summary>
         </key>
         <key name="current-wallpaper" type="s">
