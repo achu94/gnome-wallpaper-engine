@@ -8,7 +8,7 @@ import { createWallpaperItem } from "./wallpaperItem.js";
 function generateThumbnail(videoPath, thumbPath) {
     try {
         GLib.spawn_command_line_sync(
-            `ffmpeg -y -i "${videoPath}" -ss 00:00:01 -vframes 1 "${thumbPath}"`
+            `mpv ${videoPath} --no-audio --start=00:00:01 --frames=1 --vo=image --ovc=libwebp --o=${thumbPath}`
         );
     } catch (e) {
         logError(e);
@@ -61,7 +61,7 @@ export function buildGalleryPage(ext, window, settings) {
     const ensureThumbnail = (fileName) => {
         const fullPath = `${bgDir}/${fileName}`;
         const baseName = fileName.substring(0, fileName.lastIndexOf("."));
-        const thumbPath = `${bgDir}/${baseName}.jpg`;
+        const thumbPath = `${bgDir}/${baseName}-thumb.webp`;
 
         const thumbFile = Gio.File.new_for_path(thumbPath);
 

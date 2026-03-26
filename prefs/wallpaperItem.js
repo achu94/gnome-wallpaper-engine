@@ -18,7 +18,7 @@ export function createWallpaperItem(dir, fileName) {
     const lastDot = fileName.lastIndexOf(".");
     const baseName = lastDot !== -1 ? fileName.substring(0, lastDot) : fileName;
 
-    const thumbPath = `${dir}/${baseName}.jpg`;
+    const thumbPath = `${dir}/${baseName}-thumb.webp`;
     const thumbFile = Gio.File.new_for_path(thumbPath);
 
     let image;
