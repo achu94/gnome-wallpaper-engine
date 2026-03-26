@@ -24,13 +24,13 @@ export const Indicator = GObject.registerClass(
 
             const playItem = new PopupMenu.PopupMenuItem("Start Wallpaper");
             playItem.connect("activate", () => {
-                this._extension.startWallpaper();
+                this._extension._wallpaper.start();
             });
             this.menu.addMenuItem(playItem);
 
             const stopItem = new PopupMenu.PopupMenuItem("Stop Wallpaper");
             stopItem.connect("activate", () => {
-                this._extension.stopWallpaper();
+                this._extension._wallpaper.stop();
             });
             this.menu.addMenuItem(stopItem);
 
