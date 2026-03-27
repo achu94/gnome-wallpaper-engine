@@ -72,6 +72,12 @@ sudo pacman -S mpv
 
 ---
 
+### openSUSE
+
+```bash
+sudo zypper in mpv
+```
+
 ## 📦 Installation
 
 ### ⚡ Quick Install (Recommended)
