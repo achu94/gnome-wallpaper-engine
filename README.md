@@ -87,7 +87,7 @@ sudo zypper in mpv ffmpeg
 ### openSUSE
 
 ```bash
-sudo zypper in mpv
+sudo zypper in mpv ffmpeg
 ```
 
 ## 📦 Installation
