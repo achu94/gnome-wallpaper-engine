@@ -8,7 +8,7 @@ import { createWallpaperItem } from "./wallpaperItem.js";
 function generateThumbnail(videoPath, thumbPath) {
     try {
         GLib.spawn_command_line_sync(
-            `mpv ${videoPath} --no-audio --start=00:00:01 --frames=1 --vo=image --ovc=libwebp --o=${thumbPath}`
+            `ffmpeg -y -ss 00:00:01 -i "${videoPath}" -frames:v 1 "${thumbPath}"`
         );
     } catch (e) {
         logError(e);
