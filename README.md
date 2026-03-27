@@ -84,6 +84,12 @@ sudo pacman -S mpv ffmpeg
 sudo zypper in mpv ffmpeg
 ```
 
+### openSUSE
+
+```bash
+sudo zypper in mpv
+```
+
 ## 📦 Installation
 
 ### ⚡ Quick Install (Recommended)
