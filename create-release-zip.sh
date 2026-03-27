@@ -18,6 +18,7 @@ rsync -av ./ "$OUTPUT_DIR/" \
   --exclude="README.md" \
   --exclude=".gitignore" \
   --exclude=".git" \
+  --exclude="update-extension.sh" \
   --exclude="$SCRIPT_NAME" \
   --exclude="$OUTPUT_DIR"
 
