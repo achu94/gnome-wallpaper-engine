@@ -127,17 +127,35 @@ export function buildGalleryPage(ext, window, settings) {
                 const destPath = `${bgDir}/${fileName}`;
                 const destFile = Gio.File.new_for_path(destPath);
 
-                try {
-                    sourceFile.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null);
+                spinner.visible = true;
+                spinner.start();
 
-                    ensureThumbnail(fileName);
+                sourceFile.copy_async(
+                    destFile,
+                    Gio.FileCopyFlags.OVERWRITE,
+                    GLib.PRIORITY_DEFAULT,
+                    null,
+                    null,
+                    (source, result) => {
+                        try {
+                            source.copy_finish(result);
 
-                    settings.set_string("current-wallpaper", fileName);
+                            spinner.stop();
+                            spinner.visible = false;
 
-                    refreshGallery();
-                } catch (e) {
-                    console.error(e);
-                }
+                            ensureThumbnail(fileName);
+                            refreshGallery();
+
+                            settings.set_string("current-wallpaper", "");
+                            settings.set_string("current-wallpaper", fileName);
+
+                        } catch (e) {
+                            spinner.stop();
+                            spinner.visible = false;
+                            console.error(e);
+                        }
+                    }
+                );
             }
 
             chooser.destroy();
@@ -166,7 +184,16 @@ export function buildGalleryPage(ext, window, settings) {
     buttonBox.append(addButton);
     buttonBox.append(openFolderButton);
 
+    const spinner = new Gtk.Spinner({
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        visible: false,
+    });
+    spinner.set_size_request(64, 64);
+    spinner.set_halign(Gtk.Align.CENTER);
+
     group.add(buttonBox);
+    group.add(spinner);
     group.add(flowBox);
     page.add(group);
 
