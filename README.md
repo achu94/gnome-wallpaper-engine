@@ -1,6 +1,6 @@
 # 🌌 GNOME Live Wallpaper Engine
 
-No complex setup. No heavy dependencies. Just mpv + the extension.
+No complex setup. No heavy dependencies. Just mpv, ffmpeg + the extension.
 
 The **simplest and most reliable way** to use live wallpapers on GNOME — fully compatible with **Wayland & X11**.
 
@@ -55,22 +55,20 @@ You only need **mpv** installed:
 ### Ubuntu / Debian / Zorin OS
 
 ```bash
-sudo apt update && sudo apt install mpv
+sudo apt update && sudo apt install mpv ffmpeg
 ```
 
 ### Fedora
 
 ```bash
-sudo dnf install mpv
+sudo dnf install mpv ffmpeg
 ```
 
 ### Arch Linux
 
 ```bash
-sudo pacman -S mpv
+sudo pacman -S mpv ffmpeg
 ```
-
----
 
 ### openSUSE
 
