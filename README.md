@@ -8,9 +8,17 @@ Powered by **mpv** for maximum performance, low resource usage, and full format 
 
 If you like this project, consider giving it a star ⭐ — it really helps!
 
+## ☕ Support & Updates
+
+If you’d like to support the project, you can do so here:
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/achu94)
 
-It helps me improve the project and keeps me motivated to work on it 🙏
+I’ll also be sharing development updates, progress, and behind-the-scenes work on Ko-fi.
+
+You don’t need to donate to see the posts — everyone is welcome to follow along and stay updated 🙂
+
+And if you enjoy the project, a ⭐ on GitHub is always appreciated!
 
 ---
 
@@ -31,7 +39,7 @@ It helps me improve the project and keeps me motivated to work on it 🙏
 - ⚡ **Very Low CPU Usage:** Typically ~1–3%
 - 🔄 **Instant Apply:** Switch wallpapers in real-time
 - 🖥️ **Wayland Ready:** Works reliably where most tools fail
-- 📦 **Minimal Setup:** Only requires mpv
+- 📦 **Minimal Setup:** Only requires mpv and ffmpeg
 - 🎞️ **Wide Format Support:** MP4, GIF, WebM, MKV and more
 - 🔁 **Autostart:** Automatically start wallpaper on login
 - 🧩 **Tray Icon Toggle:** Show or hide the top panel indicator
