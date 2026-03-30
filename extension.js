@@ -5,6 +5,7 @@ import GLib from "gi://GLib";
 import { Indicator } from "./indicator.js";
 import { Wallpaper } from "./modules/wallpaper.js";
 import { AutoPause } from "./modules/autoPause.js";
+import { WindowFilter } from "./modules/windowFilter.js";
 
 import { debug } from "./modules/utils.js";
 
@@ -12,30 +13,28 @@ export default class WallpaperExtension extends Extension {
     enable() {
         this._mpvExists = GLib.find_program_in_path('mpv');
         this._ffmpegExists = GLib.find_program_in_path('ffmpeg');
-        
+
         let missing = [];
-        
-        if (!this._mpvExists) {
-            missing.push("'mpv'");
-        }
-        
-        if (!this._ffmpegExists) {
-            missing.push("'ffmpeg'");
-        }
-        
+
+        if (!this._mpvExists) missing.push("'mpv'");
+        if (!this._ffmpegExists) missing.push("'ffmpeg'");
+
         if (missing.length > 0) {
-            let msg = "Error: Missing dependencies: " + missing.join(" and ");
-            Main.notify("Gnome Live Wallpaper", msg);
+            Main.notify("Gnome Live Wallpaper", "Missing: " + missing.join(" and "));
             return;
         }
-        
+
         globalThis.debug = debug;
 
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
 
         this._indicator = null;
-        this._wallpaper = new Wallpaper(this);
-        
+
+        this._windowFilter = new WindowFilter();
+        this._windowFilter.enable();
+
+        this._wallpaper = new Wallpaper(this, this._windowFilter);
+
         this._indicatorSignalId = this._settings.connect(
             "changed::show-indicator",
             () => this._updateIndicatorVisibility()
@@ -48,12 +47,13 @@ export default class WallpaperExtension extends Extension {
         );
 
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
+            if (this._settings.get_boolean("autostart") &&
+                this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
             }
             return GLib.SOURCE_REMOVE;
         });
-        
+
         this._autoPause = new AutoPause(this, this._wallpaper);
         this._autoPause.start();
     }
@@ -99,6 +99,11 @@ export default class WallpaperExtension extends Extension {
         if (this._autoPause) {
             this._autoPause.stop();
             this._autoPause = null;
+        }
+
+        if (this._windowFilter) {
+            this._windowFilter.disable();
+            this._windowFilter = null;
         }
 
         this._settings = null;
