@@ -8,7 +8,7 @@ import { createWallpaperItem } from "./wallpaperItem.js";
 function generateThumbnail(videoPath, thumbPath) {
     try {
         GLib.spawn_command_line_sync(
-            `ffmpeg -y -ss 00:00:01 -i "${videoPath}" -frames:v 1 "${thumbPath}"`
+            `ffmpeg -y -ss 00:00:01 -i "${videoPath}" -frames:v 1 "${thumbPath}"`,
         );
     } catch (e) {
         logError(e);
@@ -58,7 +58,7 @@ export function buildGalleryPage(ext, window, settings) {
         }
     };
 
-    const ensureThumbnail = (fileName) => {
+    const ensureThumbnail = async (fileName) => {
         const fullPath = `${bgDir}/${fileName}`;
         const baseName = fileName.substring(0, fileName.lastIndexOf("."));
         const thumbPath = `${bgDir}/${baseName}-thumb.webp`;
@@ -83,7 +83,7 @@ export function buildGalleryPage(ext, window, settings) {
             const enumerator = directory.enumerate_children(
                 "standard::name",
                 Gio.FileQueryInfoFlags.NONE,
-                null
+                null,
             );
 
             let info;
@@ -92,7 +92,11 @@ export function buildGalleryPage(ext, window, settings) {
             while ((info = enumerator.next_file(null)) !== null) {
                 const fileName = info.get_name();
 
-                if (supported.some(ext => fileName.toLowerCase().endsWith(ext))) {
+                if (
+                    supported.some((ext) =>
+                        fileName.toLowerCase().endsWith(ext),
+                    )
+                ) {
                     ensureThumbnail(fileName);
                     flowBox.append(createWallpaperItem(bgDir, fileName));
                 }
@@ -102,7 +106,7 @@ export function buildGalleryPage(ext, window, settings) {
         }
     };
 
-    addButton.connect("clicked", () => {
+    addButton.connect("clicked", async () => {
         const chooser = new Gtk.FileChooserNative({
             title: "Select Video or GIF",
             action: Gtk.FileChooserAction.OPEN,
@@ -136,25 +140,24 @@ export function buildGalleryPage(ext, window, settings) {
                     GLib.PRIORITY_DEFAULT,
                     null,
                     null,
-                    (source, result) => {
+                    async (source, result) => {
                         try {
                             source.copy_finish(result);
 
                             spinner.stop();
                             spinner.visible = false;
 
-                            ensureThumbnail(fileName);
+                            await ensureThumbnail(fileName);
                             refreshGallery();
 
                             settings.set_string("current-wallpaper", "");
                             settings.set_string("current-wallpaper", fileName);
-
                         } catch (e) {
                             spinner.stop();
                             spinner.visible = false;
                             console.error(e);
                         }
-                    }
+                    },
                 );
             }
 

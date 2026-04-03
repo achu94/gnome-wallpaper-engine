@@ -5,6 +5,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import Clutter from "gi://Clutter";
 
 import { WindowUtils } from "./windowUtils.js";
+import { StaticWallpaper } from "./staticWallpaper.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -18,12 +19,15 @@ export class Wallpaper {
         this._raisedSignalId = null;
         this._windowCreatedId = null;
         this._clone = null;
+        this._staticWallpaper = new StaticWallpaper();
     }
 
     _createClone(metaWin) {
         let actor = metaWin.get_compositor_private();
         if (!actor) {
-            debug("Wallpaper: No compositor_private found. Aborting clone creation.");
+            debug(
+                "Wallpaper: No compositor_private found. Aborting clone creation.",
+            );
             return null;
         }
 
@@ -65,6 +69,14 @@ export class Wallpaper {
             filename,
         ]);
 
+        const videoThumbPath = GLib.build_filenamev([
+            this._ext.path,
+            "backgrounds",
+            filename.replace(/\.[^/.]+$/, "-thumb.webp"),
+        ]);
+
+        const thumbFile = Gio.File.new_for_path(videoThumbPath);
+
         const cmd = [
             "mpv",
             "--no-border",
@@ -105,6 +117,11 @@ export class Wallpaper {
                 }
                 return GLib.SOURCE_REMOVE;
             });
+
+            if (thumbFile.query_exists(null)) {
+                const thumbUri = thumbFile.get_uri();
+                this._staticWallpaper.set(thumbUri);
+            }
         } catch (e) {
             debug(`Wallpaper: Error in start(): ${e}`);
         }
@@ -140,7 +157,9 @@ export class Wallpaper {
                 return GLib.SOURCE_REMOVE;
             }
 
-            debug(`Wallpaper: Window ready after ${attempts} attempts. Title: "${title}"`);
+            debug(
+                `Wallpaper: Window ready after ${attempts} attempts. Title: "${title}"`,
+            );
             this._wallpaperWindow = metaWin;
 
             if (this._windowFilter) {
@@ -154,7 +173,7 @@ export class Wallpaper {
 
             try {
                 metaWin.set_accept_focus(false);
-            } catch (e) { }
+            } catch (e) {}
 
             try {
                 metaWin.set_input_region(new Cairo.Region());
