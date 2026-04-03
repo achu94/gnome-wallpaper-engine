@@ -1,11 +1,9 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Cairo from "gi://cairo";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import Clutter from "gi://Clutter";
 
 import { WindowUtils } from "./windowUtils.js";
-
+import { WallpaperClone } from "./wallpaperClone.js"
 export class Wallpaper {
     constructor(ext, windowFilter) {
         debug("Wallpaper: Initializing");
@@ -18,33 +16,6 @@ export class Wallpaper {
         this._raisedSignalId = null;
         this._windowCreatedId = null;
         this._clone = null;
-    }
-
-    _createClone(metaWin) {
-        let actor = metaWin.get_compositor_private();
-        if (!actor) {
-            debug("Wallpaper: No compositor_private found. Aborting clone creation.");
-            return null;
-        }
-
-        const clutterClone = new Clutter.Clone({
-            source: actor,
-            reactive: false,
-            layout_manager: null,
-        });
-
-        let monitor = Main.layoutManager.primaryMonitor;
-        clutterClone.set_position(monitor.x, monitor.y);
-        clutterClone.set_size(monitor.width, monitor.height);
-
-        Main.layoutManager._backgroundGroup.insert_child_at_index(
-            clutterClone,
-            0,
-        );
-        clutterClone.lower_bottom();
-
-        debug("Wallpaper: Clone successfully added to _backgroundGroup.");
-        return clutterClone;
     }
 
     start() {
@@ -167,7 +138,7 @@ export class Wallpaper {
             actor.reactive = false;
 
             if (!this._clone) {
-                this._clone = this._createClone(metaWin);
+                this._clone = new WallpaperClone(metaWin);
             }
 
             if (!this._raisedSignalId) {
