@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 import Cairo from "gi://cairo";
 
 import { WindowUtils } from "./windowUtils.js";
+import { StaticWallpaper } from "./staticWallpaper.js";
 import { WallpaperClone } from "./wallpaperClone.js"
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -16,6 +17,36 @@ export class Wallpaper {
         this._raisedSignalId = null;
         this._windowCreatedId = null;
         this._clone = null;
+        this._staticWallpaper = new StaticWallpaper();
+    }
+
+    _createClone(metaWin) {
+        let actor = metaWin.get_compositor_private();
+        if (!actor) {
+            debug(
+                "Wallpaper: No compositor_private found. Aborting clone creation.",
+            );
+            return null;
+        }
+
+        const clutterClone = new Clutter.Clone({
+            source: actor,
+            reactive: false,
+            layout_manager: null,
+        });
+
+        let monitor = Main.layoutManager.primaryMonitor;
+        clutterClone.set_position(monitor.x, monitor.y);
+        clutterClone.set_size(monitor.width, monitor.height);
+
+        Main.layoutManager._backgroundGroup.insert_child_at_index(
+            clutterClone,
+            0,
+        );
+        clutterClone.lower_bottom();
+
+        debug("Wallpaper: Clone successfully added to _backgroundGroup.");
+        return clutterClone;
     }
 
     start() {
@@ -35,6 +66,14 @@ export class Wallpaper {
             "backgrounds",
             filename,
         ]);
+
+        const videoThumbPath = GLib.build_filenamev([
+            this._ext.path,
+            "backgrounds",
+            filename.replace(/\.[^/.]+$/, "-thumb.webp"),
+        ]);
+
+        const thumbFile = Gio.File.new_for_path(videoThumbPath);
 
         const cmd = [
             "mpv",
@@ -76,6 +115,11 @@ export class Wallpaper {
                 }
                 return GLib.SOURCE_REMOVE;
             });
+
+            if (thumbFile.query_exists(null)) {
+                const thumbUri = thumbFile.get_uri();
+                this._staticWallpaper.set(thumbUri);
+            }
         } catch (e) {
             debug(`Wallpaper: Error in start(): ${e}`);
         }
@@ -111,7 +155,9 @@ export class Wallpaper {
                 return GLib.SOURCE_REMOVE;
             }
 
-            debug(`Wallpaper: Window ready after ${attempts} attempts. Title: "${title}"`);
+            debug(
+                `Wallpaper: Window ready after ${attempts} attempts. Title: "${title}"`,
+            );
             this._wallpaperWindow = metaWin;
 
             if (this._windowFilter) {
@@ -125,7 +171,7 @@ export class Wallpaper {
 
             try {
                 metaWin.set_accept_focus(false);
-            } catch (e) { }
+            } catch (e) {}
 
             try {
                 metaWin.set_input_region(new Cairo.Region());
