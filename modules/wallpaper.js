@@ -2,73 +2,60 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Cairo from "gi://cairo";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
-
 import Clutter from "gi://Clutter";
 
 import { WindowUtils } from "./windowUtils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
-        debug("Wallpaper: constructor() initialisiert");
+        debug("Wallpaper: Initializing");
         this._ext = ext;
         this._windowFilter = windowFilter;
 
         this._mpvProcess = null;
-
         this._wallpaperWindow = null;
+
         this._raisedSignalId = null;
         this._windowCreatedId = null;
-        this._lowerFixApplied = false;
         this._clone = null;
     }
 
-    clone(metaWindow) {
-        debug(`Wallpaper: clone() aufgerufen für Fenster: ${metaWindow ? metaWindow.get_title() : 'null'}`);
-        try {
-            let actor = metaWindow.get_compositor_private();
-            if (!actor) {
-                debug("Wallpaper: Kein compositor_private (actor) gefunden! Abbruch clone().");
-                return null;
-            }
-
-            const clutterClone = new Clutter.Clone({
-                source: actor,
-            });
-
-            let monitor = Main.layoutManager.primaryMonitor;
-            debug(`Wallpaper: Primärer Monitor erkannt - Position: ${monitor.x},${monitor.y}, Größe: ${monitor.width}x${monitor.height}`);
-
-            clutterClone.set_position(monitor.x, monitor.y);
-            clutterClone.set_size(monitor.width, monitor.height);
-            clutterClone.set_lower();
-
-            Main.layoutManager._backgroundGroup.add_child(clutterClone);
-            debug("Wallpaper: Clutter.Clone erfolgreich zur _backgroundGroup hinzugefügt.");
-
-            actor.opacity = 0;
-            actor.set_reactive(false);
-
-            metaWindow.move_frame(true, -10000, -10000);
-            metaWindow.stick();
-            debug("Wallpaper: Original-Fenster versteckt und angepinnt (stick).");
-
-            return clutterClone;
-
-        } catch (error) {
-            debug(`Wallpaper: FEHLER in clone(): ${error}`);
+    _createClone(metaWin) {
+        let actor = metaWin.get_compositor_private();
+        if (!actor) {
+            debug("Wallpaper: No compositor_private found. Aborting clone creation.");
+            return null;
         }
+
+        const clutterClone = new Clutter.Clone({
+            source: actor,
+            reactive: false,
+            layout_manager: null,
+        });
+
+        let monitor = Main.layoutManager.primaryMonitor;
+        clutterClone.set_position(monitor.x, monitor.y);
+        clutterClone.set_size(monitor.width, monitor.height);
+
+        Main.layoutManager._backgroundGroup.insert_child_at_index(
+            clutterClone,
+            0,
+        );
+        clutterClone.lower_bottom();
+
+        debug("Wallpaper: Clone successfully added to _backgroundGroup.");
+        return clutterClone;
     }
 
     start() {
-        debug("Wallpaper: start() aufgerufen, rufe stop() zur Sicherheit auf...");
+        debug("Wallpaper: Starting...");
         this.stop();
 
         const settings = this._ext._settings;
         const filename = settings.get_string("current-wallpaper");
 
-        debug(`Wallpaper: Gelesener Dateiname aus den Settings: "${filename}"`);
         if (!filename) {
-            debug("Wallpaper: Kein Dateiname vorhanden. start() wird abgebrochen.");
+            debug("Wallpaper: No filename provided in settings. Aborting.");
             return;
         }
 
@@ -77,7 +64,6 @@ export class Wallpaper {
             "backgrounds",
             filename,
         ]);
-        debug(`Wallpaper: Generierter Video-Pfad: ${videoPath}`);
 
         const cmd = [
             "mpv",
@@ -102,149 +88,126 @@ export class Wallpaper {
         ];
 
         try {
-            debug(`Wallpaper: Starte mpv Prozess mit Befehl: ${cmd.join(" ")}`);
-            this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
-            debug("Wallpaper: mpv Subprocess erfolgreich gestartet.");
+            debug("Wallpaper: Launching mpv process...");
+            this._mpvProcess = Gio.Subprocess.new(
+                cmd,
+                Gio.SubprocessFlags.NONE,
+            );
 
             this._windowCreatedId = global.display.connect(
                 "window-created",
-                (_, metaWin) => {
-                    debug(`Wallpaper: Signal 'window-created' gefeuert für: ${metaWin}`);
-                    this._handleWindow(metaWin);
-                }
+                (_, metaWin) => this._handleWindow(metaWin),
             );
-            debug(`Wallpaper: 'window-created' Signal verbunden (ID: ${this._windowCreatedId}).`);
 
             GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                const actors = global.get_window_actors();
-                debug(`Wallpaper: Durchsuche ${actors.length} existierende Fenster-Actors im idle_add...`);
-                for (const actor of actors) {
+                for (const actor of global.get_window_actors()) {
                     this._handleWindow(actor.get_meta_window());
                 }
                 return GLib.SOURCE_REMOVE;
             });
-
         } catch (e) {
-            debug(`Wallpaper: FEHLER in start(): ${e}`);
-            logError(e);
+            debug(`Wallpaper: Error in start(): ${e}`);
         }
     }
 
     _handleWindow(metaWin) {
         if (!metaWin) return;
 
-        // Wir geben Mutter/GJS einen kurzen Moment (100ms), 
-        // um die Fenstereigenschaften (Titel, Class, Actor) zu laden.
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        let attempts = 0;
+        const maxAttempts = 40;
 
-            // Erst jetzt prüfen wir, ob es das richtige Fenster ist
-            if (!WindowUtils.isWallpaperWindow(metaWin)) {
-                return GLib.SOURCE_REMOVE; // Beende den Timeout, nicht unser Fenster
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            attempts++;
+
+            if (!metaWin) {
+                return GLib.SOURCE_REMOVE;
             }
 
-            const title = metaWin.get_title();
-            debug(`Wallpaper: Wallpaper-Fenster erkannt! ("${title}") Wende Fenstereinstellungen an...`);
+            let title = metaWin.get_title();
+            let actor = metaWin.get_compositor_private();
 
-            // 1. Fenster im Filter registrieren
+            if (!title || !actor) {
+                if (attempts >= maxAttempts) {
+                    debug(
+                        `Wallpaper: Aborting setup. Actor/Title not loaded after ${maxAttempts} attempts.`,
+                    );
+                    return GLib.SOURCE_REMOVE;
+                }
+                return GLib.SOURCE_CONTINUE;
+            }
+
+            if (!WindowUtils.isWallpaperWindow(metaWin)) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            debug(`Wallpaper: Window ready after ${attempts} attempts. Title: "${title}"`);
+            this._wallpaperWindow = metaWin;
+
             if (this._windowFilter) {
                 this._windowFilter.addWindow(metaWin);
             }
 
-            // 2. Grundlegende Fenster-Eigenschaften
-            metaWin.lower();
+            metaWin.set_skip_taskbar(true);
             metaWin.stick();
             metaWin.focus_on_click = false;
+            metaWin.lower();
 
             try {
                 metaWin.set_accept_focus(false);
+            } catch (e) { }
+
+            try {
+                metaWin.set_input_region(new Cairo.Region());
             } catch (e) {
-                debug(`Wallpaper: Fehler bei set_accept_focus: ${e}`);
+                debug(`Wallpaper: Region-Error: ${e}`);
             }
 
-            // 3. Input Region entfernen (Klicks gehen durch das Fenster durch)
-            // Wir nutzen ein idle_add, um sicherzustellen, dass der Actor existiert
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                try {
-                    metaWin.set_input_region(new Cairo.Region()); // Sicherer als null bei manchen Versionen
-                    debug("Wallpaper: Input-Region erfolgreich entfernt.");
-                } catch (e) {
-                    debug(`Wallpaper: Fehler bei set_input_region: ${e}`);
-                }
-                return GLib.SOURCE_REMOVE;
-            });
+            actor.translation_x = -10000;
+            actor.translation_y = -10000;
+            actor.reactive = false;
 
-            // 4. Den "Dauerhaft-Unten"-Fix anwenden
-            if (!this._lowerFixApplied) {
-                this._lowerFixApplied = true;
-                let count = 0;
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
-                    if (metaWin) metaWin.lower();
-                    count++;
-                    return count < 5;
-                });
-            }
-
-            // 5. Clonen für die Optik (BackgroundGroup)
             if (!this._clone) {
-                // Wichtig: Wir müssen warten, bis der Actor (compositor_private) da ist!
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    if (metaWin.get_compositor_private()) {
-                        this._clone = this.clone(metaWin);
-                    } else {
-                        debug("Wallpaper: Actor noch nicht bereit für Clone, versuche es gleich erneut...");
-                        return GLib.SOURCE_CONTINUE;
-                    }
-                    return GLib.SOURCE_REMOVE;
-                });
+                this._clone = this._createClone(metaWin);
             }
 
-            // 6. Signal-Handling (Raised-Prävention)
-            if (!this._wallpaperWindow) {
-                this._wallpaperWindow = metaWin;
+            if (!this._raisedSignalId) {
                 this._raisedSignalId = metaWin.connect("raised", () => {
-                    debug("Wallpaper: 'raised' Signal abgefangen -> lower()");
                     metaWin.lower();
                 });
             }
 
-            return GLib.SOURCE_REMOVE; // Timeout beenden
+            return GLib.SOURCE_REMOVE;
         });
     }
 
     stop() {
-        debug("Wallpaper: stop() aufgerufen. Starte Cleanup...");
+        debug("Wallpaper: Stopping and starting cleanup...");
 
         if (this._mpvProcess) {
-            debug("Wallpaper: Beende mpv Prozess...");
             this._mpvProcess.force_exit();
             this._mpvProcess = null;
         }
 
         if (this._windowCreatedId) {
-            debug("Wallpaper: Trenne 'window-created' Signal...");
             global.display.disconnect(this._windowCreatedId);
             this._windowCreatedId = null;
         }
 
         if (this._raisedSignalId && this._wallpaperWindow) {
-            debug("Wallpaper: Trenne 'raised' Signal vom Wallpaper-Fenster...");
             this._wallpaperWindow.disconnect(this._raisedSignalId);
             this._raisedSignalId = null;
         }
 
-        if (this._wallpaperWindow) {
-            debug("Wallpaper: Entferne Fenster aus windowFilter...");
+        if (this._windowFilter && this._wallpaperWindow) {
             this._windowFilter.removeWindow(this._wallpaperWindow);
         }
 
         if (this._clone) {
-            debug("Wallpaper: Zerstöre Clutter.Clone...");
             this._clone.destroy();
             this._clone = null;
         }
 
         this._wallpaperWindow = null;
-        this._lowerFixApplied = false;
-        debug("Wallpaper: Cleanup abgeschlossen.");
+        debug("Wallpaper: Cleanup complete.");
     }
 }
