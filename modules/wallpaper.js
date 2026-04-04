@@ -4,8 +4,9 @@ import GLib from "gi://GLib";
 import { WindowUtils } from "./windowUtils.js";
 
 export class Wallpaper {
-    constructor(ext) {
+    constructor(ext, windowFilter) {
         this._ext = ext;
+        this._windowFilter = windowFilter;
 
         this._mpvProcess = null;
         this._findWindowTimeoutId = null;
@@ -116,7 +117,11 @@ export class Wallpaper {
                 if (!this._wallpaperWindow) {
                     this._wallpaperWindow = metaWin;
 
-                    this._raisedSignalId = metaWin.connect('raised', () => {
+                    if (this._windowFilter) {
+                        this._windowFilter.addWindow(metaWin);
+                    }
+
+                    this._raisedSignalId = metaWin.connect("raised", () => {
                         metaWin.lower();
                     });
 
