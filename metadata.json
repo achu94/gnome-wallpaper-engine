@@ -1,16 +1,11 @@
 {
-  "uuid": "gnome-wallpaper-engine@gjs.com",
-  "name": "Gnome Live Wallpaper",
-  "description": "A high-performance bridge bringing animated and interactive wallpaper capabilities to the GNOME ecosystem. Designed to provide a native-feeling experience for running live wallpapers on Linux.",
-  "url": "https://github.com/achu94/gnome-wallpaper-engine",
-  "shell-version": [
-    "45",
-    "46",
-    "47",
-    "48",
-    "49"
-  ],
-  "settings-schema": "org.gnome.shell.extensions.gnome-wallpaper-engine",
-  "donate": "https://ko-fi.com/achu94",
-  "version": 1
+    "uuid": "gnome-wallpaper-engine@gjs.com",
+    "name": "Gnome Live Wallpaper",
+    "description": "A high-performance bridge bringing animated and interactive wallpaper capabilities to the GNOME ecosystem. Designed to provide a native-feeling experience for running live wallpapers on Linux.",
+    "url": "https://github.com/achu94/gnome-wallpaper-engine",
+    "shell-version": ["45", "46", "47", "48", "49"],
+    "settings-schema": "org.gnome.shell.extensions.gnome-wallpaper-engine",
+    "donate": "https://ko-fi.com/achu94",
+    "version": 7,
+    "version-name": "1.2.0"
 }
