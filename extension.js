@@ -5,6 +5,9 @@ import GLib from "gi://GLib";
 import { Indicator } from "./indicator.js";
 import { Wallpaper } from "./modules/wallpaper.js";
 import { AutoPause } from "./modules/autoPause.js";
+import { WindowFilter } from "./modules/windowFilter.js";
+
+import { debug } from "./modules/utils.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
@@ -26,12 +29,18 @@ export default class WallpaperExtension extends Extension {
             Main.notify("Gnome Live Wallpaper", msg);
             return;
         }
+        
+        globalThis.debug = debug;
 
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
 
         this._indicator = null;
-        this._wallpaper = new Wallpaper(this);
+        
+        this._windowFilter = new WindowFilter();
+        this._windowFilter.enable();
 
+        this._wallpaper = new Wallpaper(this, this._windowFilter);
+        
         this._indicatorSignalId = this._settings.connect(
             "changed::show-indicator",
             () => this._updateIndicatorVisibility()

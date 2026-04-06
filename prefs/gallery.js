@@ -4,14 +4,36 @@ import Gtk from "gi://Gtk";
 import GLib from "gi://GLib";
 
 import { createWallpaperItem } from "./wallpaperItem.js";
+import { ensureBackgroundsDir, getBackgroundsDir } from "../modules/utils.js";
 
-function generateThumbnail(videoPath, thumbPath) {
+Gio._promisify(Gio.File.prototype, "copy_async", "copy_finish");
+Gio._promisify(
+    Gio.Subprocess.prototype,
+    "wait_check_async",
+    "wait_check_finish",
+);
+
+async function generateThumbnail(videoPath, thumbPath) {
     try {
-        GLib.spawn_command_line_sync(
-            `ffmpeg -y -ss 00:00:01 -i "${videoPath}" -frames:v 1 "${thumbPath}"`
-        );
+        const cmd = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            "00:00:01",
+            "-i",
+            videoPath,
+            "-frames:v",
+            "1",
+            thumbPath,
+        ];
+
+        const proc = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
+        await proc.wait_check_async(null);
     } catch (e) {
-        logError(e);
+        console.error(
+            `Fehler bei der Thumbnail-Generierung für ${videoPath}:`,
+            e,
+        );
     }
 }
 
@@ -45,20 +67,10 @@ export function buildGalleryPage(ext, window, settings) {
         column_spacing: 4,
     });
 
-    const bgDir = `${ext.path}/backgrounds`;
-    const directory = Gio.File.new_for_path(bgDir);
+    const bgDir = getBackgroundsDir();
+    const directory = ensureBackgroundsDir();
 
-    const ensureDirectory = () => {
-        if (!directory.query_exists(null)) {
-            try {
-                directory.make_directory_with_parents(null);
-            } catch (e) {
-                console.error(e);
-            }
-        }
-    };
-
-    const ensureThumbnail = (fileName) => {
+    const ensureThumbnail = async (fileName) => {
         const fullPath = `${bgDir}/${fileName}`;
         const baseName = fileName.substring(0, fileName.lastIndexOf("."));
         const thumbPath = `${bgDir}/${baseName}-thumb.webp`;
@@ -66,24 +78,24 @@ export function buildGalleryPage(ext, window, settings) {
         const thumbFile = Gio.File.new_for_path(thumbPath);
 
         if (!thumbFile.query_exists(null)) {
-            generateThumbnail(fullPath, thumbPath);
+            await generateThumbnail(fullPath, thumbPath);
         }
     };
 
-    const refreshGallery = () => {
+    const refreshGallery = async () => {
         let child = flowBox.get_first_child();
         while (child) {
             flowBox.remove(child);
             child = flowBox.get_first_child();
         }
 
-        ensureDirectory();
+        ensureBackgroundsDir();
 
         try {
             const enumerator = directory.enumerate_children(
                 "standard::name",
                 Gio.FileQueryInfoFlags.NONE,
-                null
+                null,
             );
 
             let info;
@@ -92,8 +104,12 @@ export function buildGalleryPage(ext, window, settings) {
             while ((info = enumerator.next_file(null)) !== null) {
                 const fileName = info.get_name();
 
-                if (supported.some(ext => fileName.toLowerCase().endsWith(ext))) {
-                    ensureThumbnail(fileName);
+                if (
+                    supported.some((ext) =>
+                        fileName.toLowerCase().endsWith(ext),
+                    )
+                ) {
+                    await ensureThumbnail(fileName);
                     flowBox.append(createWallpaperItem(bgDir, fileName));
                 }
             }
@@ -119,7 +135,7 @@ export function buildGalleryPage(ext, window, settings) {
         filter.add_mime_type("video/x-msvideo");
         chooser.add_filter(filter);
 
-        chooser.connect("response", (res, response_id) => {
+        chooser.connect("response", async (res, response_id) => {
             if (response_id === Gtk.ResponseType.ACCEPT) {
                 const sourceFile = chooser.get_file();
                 const fileName = sourceFile.get_basename();
@@ -130,32 +146,29 @@ export function buildGalleryPage(ext, window, settings) {
                 spinner.visible = true;
                 spinner.start();
 
-                sourceFile.copy_async(
-                    destFile,
-                    Gio.FileCopyFlags.OVERWRITE,
-                    GLib.PRIORITY_DEFAULT,
-                    null,
-                    null,
-                    (source, result) => {
-                        try {
-                            source.copy_finish(result);
+                try {
+                    await sourceFile.copy_async(
+                        destFile,
+                        Gio.FileCopyFlags.OVERWRITE,
+                        GLib.PRIORITY_DEFAULT,
+                        null,
+                        null,
+                    );
 
-                            spinner.stop();
-                            spinner.visible = false;
+                    await ensureThumbnail(fileName);
 
-                            ensureThumbnail(fileName);
-                            refreshGallery();
+                    spinner.stop();
+                    spinner.visible = false;
 
-                            settings.set_string("current-wallpaper", "");
-                            settings.set_string("current-wallpaper", fileName);
+                    await refreshGallery();
 
-                        } catch (e) {
-                            spinner.stop();
-                            spinner.visible = false;
-                            console.error(e);
-                        }
-                    }
-                );
+                    settings.set_string("current-wallpaper", "");
+                    settings.set_string("current-wallpaper", fileName);
+                } catch (e) {
+                    spinner.stop();
+                    spinner.visible = false;
+                    console.error(e);
+                }
             }
 
             chooser.destroy();
@@ -190,7 +203,6 @@ export function buildGalleryPage(ext, window, settings) {
         visible: false,
     });
     spinner.set_size_request(64, 64);
-    spinner.set_halign(Gtk.Align.CENTER);
 
     group.add(buttonBox);
     group.add(spinner);

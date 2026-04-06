@@ -2,10 +2,14 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
+import { StaticWallpaper } from "./staticWallpaper.js";
+import { getBackgroundsDir } from "./utils.js";
 
 export class Wallpaper {
-    constructor(ext) {
+    constructor(ext, windowFilter) {
         this._ext = ext;
+        this._windowFilter = windowFilter;
+        this._staticWallpaper = new StaticWallpaper();
 
         this._mpvProcess = null;
         this._findWindowTimeoutId = null;
@@ -22,8 +26,15 @@ export class Wallpaper {
         const settings = this._ext._settings;
         const filename = settings.get_string("current-wallpaper");
         if (!filename) return;
+        
+        const bgDir = getBackgroundsDir();
+        
+        const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        const videoPath = GLib.build_filenamev([this._ext.path, "backgrounds", filename]);
+        const baseName = filename.substring(0, filename.lastIndexOf("."));
+        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.webp`]);
+
+        this._staticWallpaper.set(thumbPath);
 
         const cmd = [
             "mpv",
@@ -116,7 +127,11 @@ export class Wallpaper {
                 if (!this._wallpaperWindow) {
                     this._wallpaperWindow = metaWin;
 
-                    this._raisedSignalId = metaWin.connect('raised', () => {
+                    if (this._windowFilter) {
+                        this._windowFilter.addWindow(metaWin);
+                    }
+
+                    this._raisedSignalId = metaWin.connect("raised", () => {
                         metaWin.lower();
                     });
 
