@@ -25,7 +25,7 @@ export class WindowUtils {
         const monitor = global.display.get_monitor_geometry(monitorIndex);
         const rect = metaWin.get_frame_rect();
 
-        const tolerance = 5; // kleine Abweichungen erlauben
+        const tolerance = 5;
 
         return (
             Math.abs(rect.x - monitor.x) < tolerance &&
