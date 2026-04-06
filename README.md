@@ -117,11 +117,17 @@ Finally, enable the extension using the **Extensions** app
 gnome-wallpaper-engine@gjs.com
 ```
 
-4. Restart GNOME Shell
+4. Compile the GSettings schemas by running this command in your terminal:
+
+```
+glib-compile-schemas ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com/schemas/
+```
+
+5. Restart GNOME Shell
     - Wayland: Log out and log back in
     - X11: Press `Alt + F2`, type `r`, press Enter
 
-5. Enable the extension using the **Extensions** app
+6. Enable the extension using the **Extensions** app
 
 ---
 
