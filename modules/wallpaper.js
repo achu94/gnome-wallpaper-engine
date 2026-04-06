@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
+import { getBackgroundsDir } from "./utils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -25,11 +26,13 @@ export class Wallpaper {
         const settings = this._ext._settings;
         const filename = settings.get_string("current-wallpaper");
         if (!filename) return;
-
-        const videoPath = GLib.build_filenamev([this._ext.path, "backgrounds", filename]);
         
+        const bgDir = getBackgroundsDir();
+        
+        const videoPath = GLib.build_filenamev([bgDir, filename]);
+
         const baseName = filename.substring(0, filename.lastIndexOf("."));
-        const thumbPath = GLib.build_filenamev([this._ext.path, "backgrounds", `${baseName}-thumb.webp`]);
+        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.webp`]);
 
         this._staticWallpaper.set(thumbPath);
 
