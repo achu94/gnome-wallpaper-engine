@@ -16,15 +16,22 @@ export class WindowUtils {
     }
 
     static fillsMonitor(metaWin) {
+        if (metaWin.is_fullscreen()) return true;
+        if (metaWin.get_maximized() === Meta.MaximizeFlags.BOTH) return true;
+
         const monitorIndex = metaWin.get_monitor();
         if (monitorIndex < 0) return false;
 
         const monitor = global.display.get_monitor_geometry(monitorIndex);
         const rect = metaWin.get_frame_rect();
 
+        const tolerance = 5; // kleine Abweichungen erlauben
+
         return (
-            rect.width >= monitor.width &&
-            rect.height >= monitor.height
+            Math.abs(rect.x - monitor.x) < tolerance &&
+            Math.abs(rect.y - monitor.y) < tolerance &&
+            Math.abs(rect.width - monitor.width) < tolerance &&
+            Math.abs(rect.height - monitor.height) < tolerance
         );
     }
 }
