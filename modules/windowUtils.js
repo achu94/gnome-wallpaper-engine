@@ -8,16 +8,23 @@ export class WindowUtils {
         );
     }
 
+    static _isWindowMaximized(metaWin) {
+        if (typeof metaWin.is_maximized === "function") {
+            // GNOME 49+
+            return metaWin.is_maximized();
+        } else {
+            // GNOME 48 and older (3 corresponds to Meta.MaximizeFlags.BOTH)
+            return metaWin.get_maximized() === 3;
+        }
+    }
+
     static isFullscreenLike(metaWin) {
-        return (
-            metaWin.is_fullscreen() ||
-            metaWin.get_maximized() === 3
-        );
+        return metaWin.is_fullscreen() || this._isWindowMaximized(metaWin);
     }
 
     static fillsMonitor(metaWin) {
         if (metaWin.is_fullscreen()) return true;
-        if (metaWin.get_maximized() === Meta.MaximizeFlags.BOTH) return true;
+        if (this._isWindowMaximized(metaWin)) return true;
 
         const monitorIndex = metaWin.get_monitor();
         if (monitorIndex < 0) return false;
