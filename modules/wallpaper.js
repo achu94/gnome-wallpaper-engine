@@ -4,7 +4,9 @@ import Cairo from "gi://cairo";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
+import { getBackgroundsDir } from "./utils.js";
 import { WallpaperClone } from "./wallpaperClone.js";
+
 export class Wallpaper {
     constructor(ext, windowFilter) {
         debug("Wallpaper: Initializing");
@@ -25,23 +27,14 @@ export class Wallpaper {
 
         const settings = this._ext._settings;
         const filename = settings.get_string("current-wallpaper");
+        if (!filename) return;
+        
+        const bgDir = getBackgroundsDir();
+        
+        const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        if (!filename) {
-            debug("Wallpaper: No filename provided in settings. Aborting.");
-            return;
-        }
-
-        const videoPath = GLib.build_filenamev([
-            this._ext.path,
-            "backgrounds",
-            filename,
-        ]);
-
-        const videoThumbPath = GLib.build_filenamev([
-            this._ext.path,
-            "backgrounds",
-            filename.replace(/\.[^/.]+$/, "-thumb.webp"),
-        ]);
+        const baseName = filename.substring(0, filename.lastIndexOf("."));
+        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.webp`]);
 
         const thumbFile = Gio.File.new_for_path(videoThumbPath);
 

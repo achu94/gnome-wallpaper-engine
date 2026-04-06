@@ -4,6 +4,7 @@ import Gtk from "gi://Gtk";
 import GLib from "gi://GLib";
 
 import { createWallpaperItem } from "./wallpaperItem.js";
+import { ensureBackgroundsDir, getBackgroundsDir } from "../modules/utils.js";
 
 function generateThumbnail(videoPath, thumbPath) {
     try {
@@ -45,18 +46,8 @@ export function buildGalleryPage(ext, window, settings) {
         column_spacing: 4,
     });
 
-    const bgDir = `${ext.path}/backgrounds`;
-    const directory = Gio.File.new_for_path(bgDir);
-
-    const ensureDirectory = () => {
-        if (!directory.query_exists(null)) {
-            try {
-                directory.make_directory_with_parents(null);
-            } catch (e) {
-                console.error(e);
-            }
-        }
-    };
+    const bgDir = getBackgroundsDir();
+    const directory = ensureBackgroundsDir();
 
     const ensureThumbnail = async (fileName) => {
         const fullPath = `${bgDir}/${fileName}`;
@@ -77,7 +68,7 @@ export function buildGalleryPage(ext, window, settings) {
             child = flowBox.get_first_child();
         }
 
-        ensureDirectory();
+        ensureBackgroundsDir();
 
         try {
             const enumerator = directory.enumerate_children(

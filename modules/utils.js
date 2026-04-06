@@ -1,3 +1,6 @@
+import GLib from "gi://GLib";
+import Gio from "gi://Gio";
+
 export function debug(msg) {
     try {
         if (msg === null) {
@@ -24,4 +27,28 @@ function getCircularReplacer() {
         }
         return value;
     };
+}
+
+export function getBackgroundsDir() {
+    const dataDir = GLib.get_user_data_dir();
+    return GLib.build_filenamev([
+        dataDir,
+        "gnome-wallpaper-engine",
+        "backgrounds",
+    ]);
+}
+
+export function ensureBackgroundsDir() {
+    const bgDir = getBackgroundsDir();
+    const directory = Gio.File.new_for_path(bgDir);
+
+    if (!directory.query_exists(null)) {
+        try {
+            directory.make_directory_with_parents(null);
+        } catch (e) {
+            logError(e);
+        }
+    }
+
+    return directory;
 }
