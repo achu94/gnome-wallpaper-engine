@@ -15,6 +15,7 @@ mkdir -p "$OUTPUT_DIR"
 rsync -av ./ "$OUTPUT_DIR/" \
   --exclude="assets" \
   --exclude="backgrounds/*" \
+  --exclude="schemas/gschemas.compiled" \
   --exclude="README.md" \
   --exclude=".gitignore" \
   --exclude=".git" \
