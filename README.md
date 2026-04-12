@@ -1,153 +1,151 @@
-# 🌌 GNOME Live Wallpaper Engine
+# GNOME Live Wallpaper Engine
 
-No complex setup. No heavy dependencies. Just mpv, ffmpeg + the extension.
+Live wallpapers for GNOME Shell (Wayland and X11) powered by `mpv` and `ffmpeg`.
 
-The **simplest and most reliable way** to use live wallpapers on GNOME — fully compatible with **Wayland & X11**.
-
-Powered by **mpv** for maximum performance, low resource usage, and full format support (MP4, GIF, WebM, MKV…).
-
-If you like this project, consider giving it a star ⭐ — it really helps!
-
-## ☕ Support & Updates
-
-If you’d like to support the project, you can do so here:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/achu94)
-
-I’ll also be sharing development updates, progress, and behind-the-scenes work on Ko-fi.
-
-You don’t need to donate to see the posts — everyone is welcome to follow along and stay updated 🙂
-
-And if you enjoy the project, a ⭐ on GitHub is always appreciated!
-
----
-
-## 🎥 Demo
-
-> Live wallpaper running on GNOME (Wayland)
+This project intentionally favors a practical runtime model: spawn a dedicated video
+renderer process and integrate it into GNOME shell behavior (visibility, stacking, and
+policy controls) so users can manage live wallpapers from standard extension settings.
 
 ![demo](https://raw.githubusercontent.com/achu94/gnome-wallpaper-engine/main/assets/demo.gif)
 
----
+## Features
 
-## ✨ Features
+- Integrated gallery inside extension preferences
+- Thumbnail generation and wallpaper import flow
+- Hardware decode support through `mpv` (`hwdec=auto`)
+- Auto-start and tray indicator controls
+- Policy controls for fullscreen and battery scenarios
+- Static wallpaper fallback for overview consistency
+- GNOME Shell support matrix defined in `metadata.json` (`45` to `49`)
 
-- 🎬 **Integrated Gallery:** Browse and select wallpapers directly from GNOME Settings
-- 🖼️ **Thumbnail Previews:** Automatically generated previews for all wallpapers
-- 📥 **Smart Import:** Add videos with one click and apply instantly
-- 🚀 **GPU Accelerated (enabled by default):** Uses mpv with `hwdec=auto`
-- ⚡ **Very Low CPU Usage:** Typically ~1–3%
-- 🔄 **Instant Apply:** Switch wallpapers in real-time
-- 🖥️ **Wayland Ready:** Works reliably where most tools fail
-- 📦 **Minimal Setup:** Only requires mpv and ffmpeg
-- 🎞️ **Wide Format Support:** MP4, GIF, WebM, MKV and more
-- 🔁 **Autostart:** Automatically start wallpaper on login
-- 🧩 **Tray Icon Toggle:** Show or hide the top panel indicator
-- ⏸️ **Auto Pause (Fullscreen):** Pauses when a fullscreen app is active
-- 🔋 **Auto Pause (Battery):** Pauses when running on battery to save power
+## Dependencies
 
----
+Runtime dependencies:
 
-## 🚧 Roadmap
+- `mpv`
+- `ffmpeg`
+- GNOME Shell with extension support
 
-- 🎮 Steam Wallpaper Engine integration (auto-detect and list compatible wallpapers)
-- 🎛️ Advanced playback settings (loop modes, speed, etc.)
-- 🎨 Future rendering engine (without mpv)
+Operational dependencies:
 
----
+- `gnome-extensions` CLI (install/enable/disable commands)
+- `glib-compile-schemas` (required for manual install and local dev updates)
 
-## 🛠 Requirements
+Packaging/developer tooling used by this repo:
 
-You only need **mpv** installed:
+- `bash`, `zip`, `rsync`, `mktemp`
 
-### Ubuntu / Debian / Zorin OS
+### Install dependencies
+
+Ubuntu / Debian / Zorin:
 
 ```bash
-sudo apt update && sudo apt install mpv ffmpeg
+sudo apt update
+sudo apt install mpv ffmpeg gnome-shell-extensions
 ```
 
-### Fedora
+Fedora:
 
 ```bash
-sudo dnf install mpv ffmpeg
+sudo dnf install mpv ffmpeg gnome-extensions-app
 ```
 
-### Arch Linux
+Arch Linux:
 
 ```bash
-sudo pacman -S mpv ffmpeg
+sudo pacman -S mpv ffmpeg gnome-shell-extensions
 ```
 
-### openSUSE
+openSUSE:
 
 ```bash
-sudo zypper in mpv ffmpeg
+sudo zypper in mpv ffmpeg gnome-extensions
 ```
 
-## 📦 Installation
+## Installation
 
-### ⚡ Quick Install (Recommended)
+### Recommended: install release ZIP
 
 ```bash
 gnome-extensions install gnome-wallpaper-engine@gjs.com.zip
+gnome-extensions enable gnome-wallpaper-engine@gjs.com
 ```
 
-Then:
+Apply shell reload:
 
-- Wayland: Log out and log back in
-- X11: Press `Alt + F2`, type `r`, press Enter
+- Wayland: log out and log back in
+- X11: `Alt + F2`, type `r`, press `Enter`
 
-Finally, enable the extension using the **Extensions** app  
-(or via the top panel indicator if enabled).
+### Manual install
 
----
+1. Extract the release into:
+   `~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com`
+2. Compile schemas:
+   `glib-compile-schemas ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com/schemas`
+3. Enable the extension:
+   `gnome-extensions enable gnome-wallpaper-engine@gjs.com`
+4. Reload GNOME session (Wayland logout/login, X11 restart shell)
 
-### 🧩 Manual Install
+### Local development update
 
-1. Download the ZIP file from the latest release
-2. Extract it to:
+From repository root:
 
-```
-~/.local/share/gnome-shell/extensions/
-```
-
-3. Make sure the folder is named:
-
-```
-gnome-wallpaper-engine@gjs.com
+```bash
+./update-extension.sh --from-source --enable
 ```
 
-4. Compile the GSettings schemas by running this command in your terminal:
+This path syncs the current checkout into your local extensions directory and compiles
+schemas in place.
 
+## Observability and diagnostics
+
+Use the bundled diagnostics command to capture extension state and recent logs:
+
+```bash
+./debug.sh capture
 ```
-glib-compile-schemas ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engine@gjs.com/schemas/
+
+Useful modes:
+
+- `./debug.sh status` for quick runtime summary
+- `./debug.sh logs --since "15 min ago"` for GNOME Shell logs
+- `./debug.sh capture --output /tmp/gwe-diagnostics.txt` for bug reports
+
+Full guide: [docs/observability.md](docs/observability.md)
+
+## Architecture and roadmap
+
+Architecture and implementation planning are documented explicitly:
+
+- [docs/architecture-roadmap.md](docs/architecture-roadmap.md)
+- [docs/operations.md](docs/operations.md)
+- [docs/release-process.md](docs/release-process.md)
+
+Roadmap alignment is tracked by issue clusters:
+
+- Shell visibility and layering: `#1`, `#6`, `#10`, `#12`
+- Multi-monitor runtime: `#11`, `#14`
+- Lifecycle and policy engine: `#5`, `#7`, `#8`, `#9`, `#18`
+- Media reliability and thumbnails: `#3`, `#17`
+- Rotation and mixed media: `#15`, `#16`
+
+## Release quality gates
+
+Before publishing a release ZIP:
+
+```bash
+./create-release-zip.sh
+./scripts/validate-release.sh gnome-wallpaper-engine@gjs.com.zip
 ```
 
-5. Restart GNOME Shell
-    - Wayland: Log out and log back in
-    - X11: Press `Alt + F2`, type `r`, press Enter
+CI also runs the validation workflow on pushes and pull requests.
 
-6. Enable the extension using the **Extensions** app
+## Support
 
----
+If you want to support development:
 
-## 📖 Usage
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/achu94)
 
-1. Open the extension settings
-2. Click **"Add Video/GIF"**
-3. Select a wallpaper from the gallery
-4. Wallpapers are applied instantly
-5. Optionally use the top panel indicator to start or stop playback
-6. Optionally hide the tray icon from the settings
+## License
 
----
-
-## 💡 Why this exists
-
-I built this to solve the lack of simple and reliable live wallpaper solutions on GNOME, especially on Wayland.
-
----
-
-## ⚖️ License
-
-GPL-3.0 — free and open source.
+GPL-3.0.

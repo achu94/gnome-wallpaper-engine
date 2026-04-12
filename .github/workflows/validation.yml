@@ -1,0 +1,44 @@
+name: Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - fix/**
+      - feat/**
+      - chore/**
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tooling dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libglib2.0-bin \
+            rsync \
+            shellcheck \
+            unzip \
+            zip
+
+      - name: Shellcheck scripts
+        run: |
+          shellcheck create-release-zip.sh
+          shellcheck update-extension.sh
+          shellcheck debug.sh
+          shellcheck scripts/validate-release.sh
+          shellcheck scripts/smoke-check.sh
+
+      - name: Run smoke validation
+        run: ./scripts/smoke-check.sh
