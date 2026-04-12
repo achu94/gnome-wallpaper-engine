@@ -16,6 +16,21 @@ export function debug(msg) {
     }
 }
 
+export function debugScope(scope, message, details = null) {
+    const prefix = `[GWE:${scope}] ${message}`;
+
+    if (details === null || details === undefined) {
+        debug(prefix);
+        return;
+    }
+
+    debug({
+        scope,
+        message,
+        details,
+    });
+}
+
 function getCircularReplacer() {
     const seen = new WeakSet();
     return (key, value) => {

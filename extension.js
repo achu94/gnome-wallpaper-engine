@@ -1,7 +1,7 @@
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import GLib from "gi://GLib";
 
-import { debug } from "./modules/utils.js";
+import { debug, debugScope } from "./modules/utils.js";
 import { RuntimeController } from "./modules/runtime/runtimeController.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
@@ -27,12 +27,18 @@ export default class WallpaperExtension extends Extension {
         }
 
         globalThis.debug = debug;
+        debugScope("extension", "enable", {
+            mpv: Boolean(this._mpvExists),
+            ffmpeg: Boolean(this._ffmpegExists),
+        });
 
         this._runtimeController = new RuntimeController(this);
         this._runtimeController.enable();
     }
 
     disable() {
+        debugScope("extension", "disable");
+
         if (this._runtimeController) {
             this._runtimeController.disable();
             this._runtimeController = null;

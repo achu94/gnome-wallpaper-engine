@@ -39,6 +39,12 @@ What this does:
 - Compiles schemas in target extension directory
 - Optionally enables extension
 
+Wayland note:
+
+- A source sync updates files immediately, but GNOME Shell may continue executing the
+  previously loaded module graph until the next logout/login. Treat source sync as
+  install parity, not as a guaranteed in-process hot reload.
+
 ## Build release ZIP
 
 ```bash

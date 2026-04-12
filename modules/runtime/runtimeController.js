@@ -4,6 +4,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Indicator } from "../../indicator.js";
 import { AutoPause } from "../autoPause.js";
 import { PlaybackSession } from "./playbackSession.js";
+import { debugScope } from "../utils.js";
 import { WindowFilter } from "../windowFilter.js";
 
 const WALLPAPER_REFRESH_DELAY_MS = 250;
@@ -27,6 +28,12 @@ export class RuntimeController {
     }
 
     enable() {
+        debugScope("runtime", "enable", {
+            autostart: this._settings.get_boolean("autostart"),
+            currentWallpaper: this._settings.get_string("current-wallpaper"),
+            showIndicator: this._settings.get_boolean("show-indicator"),
+        });
+
         this._windowFilter.enable();
         this._autoPause.start();
 
@@ -51,6 +58,8 @@ export class RuntimeController {
     }
 
     disable() {
+        debugScope("runtime", "disable");
+
         this._cancelTimeout(this._wallpaperChangeTimeoutId);
         this._wallpaperChangeTimeoutId = null;
 
@@ -73,10 +82,14 @@ export class RuntimeController {
     }
 
     startPlayback() {
+        debugScope("runtime", "start requested", {
+            currentWallpaper: this._settings.get_string("current-wallpaper"),
+        });
         this._playbackSession.start();
     }
 
     stopPlayback() {
+        debugScope("runtime", "stop requested");
         this._playbackSession.stop();
     }
 
@@ -104,6 +117,10 @@ export class RuntimeController {
     }
 
     _scheduleAutostart() {
+        debugScope("runtime", "schedule autostart", {
+            delayMs: AUTOSTART_DELAY_MS,
+        });
+
         this._cancelTimeout(this._autoStartTimeoutId);
         this._autoStartTimeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
@@ -113,7 +130,13 @@ export class RuntimeController {
 
                 if (this._settings.get_boolean("autostart") &&
                     this._settings.get_string("current-wallpaper")) {
+                    debugScope("runtime", "autostart firing");
                     this.startPlayback();
+                } else {
+                    debugScope("runtime", "autostart skipped", {
+                        autostart: this._settings.get_boolean("autostart"),
+                        currentWallpaper: this._settings.get_string("current-wallpaper"),
+                    });
                 }
 
                 return GLib.SOURCE_REMOVE;
@@ -122,6 +145,12 @@ export class RuntimeController {
     }
 
     _scheduleWallpaperRefresh() {
+        debugScope("runtime", "schedule refresh", {
+            delayMs: WALLPAPER_REFRESH_DELAY_MS,
+            currentWallpaper: this._settings.get_string("current-wallpaper"),
+            inhibitSleep: this._settings.get_boolean("inhibit-sleep"),
+        });
+
         this._cancelTimeout(this._wallpaperChangeTimeoutId);
         this._wallpaperChangeTimeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,

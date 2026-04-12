@@ -1,6 +1,7 @@
 import GLib from "gi://GLib";
 
 import { WindowUtils } from "../windowUtils.js";
+import { debugScope } from "../utils.js";
 
 const INITIAL_PLACEMENT_INTERVAL_MS = 100;
 const INITIAL_PLACEMENT_ATTEMPTS = 5;
@@ -23,6 +24,11 @@ export class StackingPolicy {
 
         this._window = metaWindow;
         this._generation = generation;
+        debugScope("stacking", "attach", {
+            generation,
+            title: metaWindow?.get_title?.() || "",
+            wmClass: metaWindow?.get_wm_class?.() || "",
+        });
 
         this._placeWindow();
         this._disableInput();
@@ -51,6 +57,12 @@ export class StackingPolicy {
     }
 
     detach() {
+        if (this._window) {
+            debugScope("stacking", "detach", {
+                generation: this._generation,
+            });
+        }
+
         this._cancelTimeout(this._initialPlacementTimeoutId);
         this._initialPlacementTimeoutId = null;
 

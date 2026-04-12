@@ -1,4 +1,5 @@
 import GLib from "gi://GLib";
+import { debugScope } from "../utils.js";
 
 const BIND_RETRY_INTERVAL_MS = 150;
 const MAX_BIND_ATTEMPTS = 40;
@@ -12,11 +13,20 @@ export class WindowBindingService {
         this.cancel();
 
         let attempts = 0;
+        debugScope("binding", "begin window binding", {
+            expectedGeneration,
+            retryIntervalMs: BIND_RETRY_INTERVAL_MS,
+            maxAttempts: MAX_BIND_ATTEMPTS,
+        });
         this._timeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             BIND_RETRY_INTERVAL_MS,
             () => {
                 if (getCurrentGeneration() !== expectedGeneration) {
+                    debugScope("binding", "aborting stale bind", {
+                        expectedGeneration,
+                        currentGeneration: getCurrentGeneration(),
+                    });
                     this._timeoutId = null;
                     return GLib.SOURCE_REMOVE;
                 }
@@ -25,12 +35,20 @@ export class WindowBindingService {
                 attempts += 1;
 
                 if (metaWindow) {
+                    debugScope("binding", "bound wallpaper window", {
+                        attempts,
+                        expectedGeneration,
+                    });
                     this._timeoutId = null;
                     onWindowBound(metaWindow);
                     return GLib.SOURCE_REMOVE;
                 }
 
                 if (attempts >= MAX_BIND_ATTEMPTS) {
+                    debugScope("binding", "window binding timed out", {
+                        attempts,
+                        expectedGeneration,
+                    });
                     this._timeoutId = null;
                     return GLib.SOURCE_REMOVE;
                 }

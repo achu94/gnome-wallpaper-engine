@@ -118,6 +118,7 @@ Full guide: [docs/observability.md](docs/observability.md)
 Architecture and implementation planning are documented explicitly:
 
 - [docs/architecture-roadmap.md](docs/architecture-roadmap.md)
+- [docs/issue-matrix.md](docs/issue-matrix.md)
 - [docs/operations.md](docs/operations.md)
 - [docs/release-process.md](docs/release-process.md)
 

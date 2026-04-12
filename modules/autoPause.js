@@ -1,4 +1,5 @@
 import Gio from "gi://Gio";
+import { debugScope } from "./utils.js";
 import { WindowUtils } from "./windowUtils.js";
 
 export class AutoPause {
@@ -21,6 +22,8 @@ export class AutoPause {
     start() {
         if (this._activeWorkspaceChangedId) return;
 
+        debugScope("autopause", "start");
+
         this._activeWorkspaceChangedId = global.workspace_manager.connect(
             "active-workspace-changed",
             () => this._trackActiveWorkspace(),
@@ -30,6 +33,8 @@ export class AutoPause {
     }
 
     stop() {
+        debugScope("autopause", "stop");
+
         if (this._activeWorkspaceChangedId) {
             global.workspace_manager.disconnect(this._activeWorkspaceChangedId);
             this._activeWorkspaceChangedId = null;
@@ -85,18 +90,29 @@ export class AutoPause {
             (pauseOnFullscreen && hasFullscreen) ||
             (pauseOnBattery && this._onBattery);
 
+        debugScope("autopause", "evaluate", {
+            shouldPause,
+            pauseOnFullscreen,
+            hasFullscreen,
+            pauseOnBattery,
+            onBattery: this._onBattery,
+            isPaused: this._isPaused,
+        });
+
         if (!shouldPause && !this._isPaused) {
             return;
         }
 
         if (shouldPause && !this._isPaused) {
             if (this._playbackController.isRunning()) {
+                debugScope("autopause", "pausing playback");
                 this._playbackController.stop();
                 this._isPaused = true;
             }
         }
 
         if (!shouldPause && this._isPaused) {
+            debugScope("autopause", "resuming playback");
             this._playbackController.start();
             this._isPaused = false;
         }

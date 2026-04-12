@@ -17,6 +17,7 @@ Shows:
 
 - Extension enabled state and version
 - Current settings snapshot
+- Media storage snapshot (`~/.local/share/gnome-wallpaper-engine`)
 - Active `mpv` process list related to the extension
 - Detected shell session type
 
@@ -27,6 +28,8 @@ Shows:
 ```
 
 This filters `journalctl` to GNOME Shell and extension-related signals.
+It also includes structured debug output emitted by the runtime controller and playback
+pipeline.
 
 ### Full capture bundle
 
@@ -56,6 +59,9 @@ Capture includes:
   Usually indicates window stacking contention with desktop/window-management extensions.
 - Multiple `mpv --title=wallpaper_bg` processes
   Often points to lifecycle race or restart storm.
+- Missing `mpv` process even when `current-wallpaper` is populated
+  Usually indicates early runtime abort, pause policy, or a shell session still running
+  a previously loaded extension build.
 - Thumbnail entries without preview
   Usually indicates media decode/thumbnail generation failures.
 

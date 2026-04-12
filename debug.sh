@@ -5,6 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 SCHEMA_ID="org.gnome.shell.extensions.gnome-wallpaper-engine"
+DATA_DIR="$HOME/.local/share/gnome-wallpaper-engine"
+BACKGROUNDS_DIR="$DATA_DIR/backgrounds"
+CATALOG_PATH="$DATA_DIR/media-catalog.json"
 
 since_value="10 min ago"
 output_path=""
@@ -123,6 +126,25 @@ print_settings_snapshot() {
   done < <("${gsettings_cmd[@]}" list-keys "$SCHEMA_ID" | sort)
 }
 
+print_storage_snapshot() {
+  echo "data_dir=$DATA_DIR"
+  echo "backgrounds_dir=$BACKGROUNDS_DIR"
+  echo "catalog_path=$CATALOG_PATH"
+
+  if [[ -d "$BACKGROUNDS_DIR" ]]; then
+    echo "backgrounds_dir_exists=true"
+    echo "background_files=$(find "$BACKGROUNDS_DIR" -maxdepth 1 -type f | wc -l)"
+  else
+    echo "backgrounds_dir_exists=false"
+  fi
+
+  if [[ -f "$CATALOG_PATH" ]]; then
+    echo "catalog_exists=true"
+  else
+    echo "catalog_exists=false"
+  fi
+}
+
 print_process_snapshot() {
   ps -eo pid,ppid,etime,cmd \
     | awk '/gnome-shell|mpv.*wallpaper_bg/ {print}'
@@ -145,7 +167,7 @@ print_filtered_logs() {
   fi
 
   journalctl --no-pager --output short-iso --since "$since_value" _COMM=gnome-shell \
-    | grep -Ei 'gnome-wallpaper-engine|wallpaper_bg|meta_window_set_stack_position_no_sync|ding|conky|mpv' \
+    | grep -Ei 'gnome-wallpaper-engine|Gnome Live Wallpaper|wallpaper_bg|meta_window_set_stack_position_no_sync|ding|conky|mpv|\[;;; DEBUG\]|\[;; DEBUG\]|"scope"|"message"' \
     || true
 }
 
@@ -162,6 +184,9 @@ run_status() {
 
   print_section "settings snapshot"
   print_settings_snapshot "$extension_dir"
+
+  print_section "storage snapshot"
+  print_storage_snapshot
 
   print_section "process snapshot"
   print_process_snapshot

@@ -1,5 +1,6 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
+import { debugScope } from "../utils.js";
 
 const GRACEFUL_EXIT_SIGNAL = 15;
 const FORCE_EXIT_DELAY_MS = 400;
@@ -18,6 +19,12 @@ export class ProcessSupervisor {
         this._processId = this._parseProcessId(this._process);
         this._generation += 1;
 
+        debugScope("process", "spawned wallpaper process", {
+            argv,
+            processId: this._processId,
+            generation: this._generation,
+        });
+
         return {
             generation: this._generation,
             process: this._process,
@@ -34,6 +41,10 @@ export class ProcessSupervisor {
         this._process = null;
         this._processId = 0;
         this._generation += 1;
+
+        debugScope("process", "stopping wallpaper process", {
+            generation: this._generation,
+        });
 
         if (this._tryGracefulExit(process)) {
             return true;
