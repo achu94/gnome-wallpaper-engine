@@ -31,6 +31,10 @@ This filters `journalctl` to GNOME Shell and extension-related signals.
 It also includes structured debug output emitted by the runtime controller and playback
 pipeline.
 
+Autopause diagnostics now include the concrete fullscreen candidate window descriptor,
+which makes it easier to distinguish real application fullscreen events from desktop or
+shell-managed surfaces.
+
 ### Full capture bundle
 
 ```bash

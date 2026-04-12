@@ -53,6 +53,30 @@ export class WindowUtils {
         return metaWin?.get_wm_class?.() ?? "";
     }
 
+    static _getWindowType(metaWin) {
+        try {
+            return metaWin?.get_window_type?.() ?? null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    static _isSkipTaskbar(metaWin) {
+        try {
+            return metaWin?.is_skip_taskbar?.() ?? false;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    static _isMinimized(metaWin) {
+        try {
+            return Boolean(metaWin?.minimized);
+        } catch (_) {
+            return false;
+        }
+    }
+
     static _isDesktopWindowType(metaWin) {
         try {
             return metaWin?.get_window_type?.() === Meta.WindowType.DESKTOP;
@@ -84,6 +108,38 @@ export class WindowUtils {
             this._hasDingDesktopTitle(metaWin) ||
             this._hasDesktopLikeClass(metaWin)
         );
+    }
+
+    static isSystemSurfaceWindow(metaWin) {
+        if (!metaWin) {
+            return false;
+        }
+
+        if (this.isDesktopWindow(metaWin)) {
+            return true;
+        }
+
+        return this._isSkipTaskbar(metaWin);
+    }
+
+    static isPauseEligibleWindow(metaWin) {
+        if (!metaWin) {
+            return false;
+        }
+
+        if (this.isWallpaperWindow(metaWin)) {
+            return false;
+        }
+
+        if (this.isSystemSurfaceWindow(metaWin)) {
+            return false;
+        }
+
+        if (this._isMinimized(metaWin)) {
+            return false;
+        }
+
+        return true;
     }
 
     static getDesktopWindows() {
@@ -125,5 +181,39 @@ export class WindowUtils {
             Math.abs(rect.width - monitor.width) < tolerance &&
             Math.abs(rect.height - monitor.height) < tolerance
         );
+    }
+
+    static describeWindow(metaWin) {
+        if (!metaWin) {
+            return null;
+        }
+
+        let frameRect = null;
+
+        try {
+            const rect = metaWin.get_frame_rect?.();
+            frameRect = rect
+                ? {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                }
+                : null;
+        } catch (_) { }
+
+        return {
+            title: this._getTitle(metaWin),
+            wmClass: this._getWmClass(metaWin),
+            pid: metaWin.get_pid?.() ?? 0,
+            monitor: metaWin.get_monitor?.() ?? -1,
+            windowType: this._getWindowType(metaWin),
+            skipTaskbar: this._isSkipTaskbar(metaWin),
+            minimized: this._isMinimized(metaWin),
+            fullscreen: metaWin.is_fullscreen?.() ?? false,
+            maximized: this._isWindowMaximized(metaWin),
+            desktopWindow: this.isDesktopWindow(metaWin),
+            frameRect,
+        };
     }
 }

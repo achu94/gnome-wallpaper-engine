@@ -81,7 +81,8 @@ export class AutoPause {
     }
 
     _checkConditions() {
-        const hasFullscreen = this._hasFullscreenWindow();
+        const fullscreenWindow = this._findFullscreenWindow();
+        const hasFullscreen = fullscreenWindow !== null;
 
         const pauseOnFullscreen = this._settings.get_boolean("pause-on-fullscreen");
         const pauseOnBattery = this._settings.get_boolean("pause-on-battery");
@@ -97,6 +98,7 @@ export class AutoPause {
             pauseOnBattery,
             onBattery: this._onBattery,
             isPaused: this._isPaused,
+            fullscreenWindow: WindowUtils.describeWindow(fullscreenWindow),
         });
 
         if (!shouldPause && !this._isPaused) {
@@ -118,22 +120,24 @@ export class AutoPause {
         }
     }
 
-    _hasFullscreenWindow() {
-        const windows = global.get_window_actors();
+    _findFullscreenWindow() {
+        const windows = this._listTrackedWorkspaceWindows();
 
-        for (const actor of windows) {
-            const metaWin = actor.get_meta_window();
-            if (!metaWin) continue;
+        for (const metaWindow of windows) {
+            if (!WindowUtils.isPauseEligibleWindow(metaWindow)) {
+                continue;
+            }
 
-            if (WindowUtils.isWallpaperWindow(metaWin)) continue;
-            if (!WindowUtils.isFullscreenLike(metaWin)) continue;
+            if (!WindowUtils.isFullscreenLike(metaWindow)) {
+                continue;
+            }
 
-            if (WindowUtils.fillsMonitor(metaWin)) {
-                return true;
+            if (WindowUtils.fillsMonitor(metaWindow)) {
+                return metaWindow;
             }
         }
 
-        return false;
+        return null;
     }
 
     _trackActiveWorkspace() {
@@ -164,7 +168,7 @@ export class AutoPause {
             }),
         );
 
-        for (const metaWindow of this._trackedWorkspace.list_windows()) {
+        for (const metaWindow of this._listTrackedWorkspaceWindows()) {
             this._trackWindow(metaWindow);
         }
     }
@@ -174,7 +178,7 @@ export class AutoPause {
             return;
         }
 
-        if (WindowUtils.isWallpaperWindow(metaWindow) || metaWindow.is_skip_taskbar?.()) {
+        if (!WindowUtils.isPauseEligibleWindow(metaWindow)) {
             return;
         }
 
@@ -226,6 +230,18 @@ export class AutoPause {
     _disconnectWindowSignals() {
         for (const metaWindow of this._windowSignalMap.keys()) {
             this._untrackWindow(metaWindow);
+        }
+    }
+
+    _listTrackedWorkspaceWindows() {
+        if (!this._trackedWorkspace) {
+            return [];
+        }
+
+        try {
+            return this._trackedWorkspace.list_windows();
+        } catch (_) {
+            return [];
         }
     }
 }

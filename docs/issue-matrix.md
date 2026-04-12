@@ -83,12 +83,16 @@ Root causes:
 - Policy decisions and playback execution were coupled directly
 - Auto-pause used coarse polling instead of reacting to shell window changes
 - Sleep inhibition behavior was implicit in the player command line
+- Desktop/system-managed surfaces could be misread as fullscreen blockers during session
+  startup if pause eligibility rules were too broad
 
 Architectural response:
 
 - `AutoPause` now reacts to workspace and window signals
 - Resume only happens when the extension itself paused playback
 - Sleep inhibition is now explicit via `inhibit-sleep` setting
+- Fullscreen pause candidates are filtered through wallpaper/desktop/system-surface
+  eligibility rules instead of raw fullscreen-like heuristics
 
 Status:
 
