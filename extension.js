@@ -1,13 +1,9 @@
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import GLib from "gi://GLib";
 
-import { Indicator } from "./indicator.js";
-import { Wallpaper } from "./modules/wallpaper.js";
-import { AutoPause } from "./modules/autoPause.js";
-import { WindowFilter } from "./modules/windowFilter.js";
-
 import { debug } from "./modules/utils.js";
+import { RuntimeController } from "./modules/runtime/runtimeController.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
@@ -29,88 +25,19 @@ export default class WallpaperExtension extends Extension {
             Main.notify("Gnome Live Wallpaper", msg);
             return;
         }
-        
+
         globalThis.debug = debug;
 
-        this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
-
-        this._indicator = null;
-        
-        this._windowFilter = new WindowFilter();
-        this._windowFilter.enable();
-
-        this._wallpaper = new Wallpaper(this, this._windowFilter);
-        
-        this._indicatorSignalId = this._settings.connect(
-            "changed::show-indicator",
-            () => this._updateIndicatorVisibility()
-        );
-        this._updateIndicatorVisibility();
-
-        this._settingsSignalId = this._settings.connect(
-            "changed::current-wallpaper",
-            () => this._wallpaper.start()
-        );
-
-        this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
-                this._wallpaper.start();
-            }
-            return GLib.SOURCE_REMOVE;
-        });
-        
-        this._autoPause = new AutoPause(this, this._wallpaper);
-        this._autoPause.start();
-    }
-
-    _updateIndicatorVisibility() {
-        const show = this._settings.get_boolean("show-indicator");
-
-        if (show && !this._indicator) {
-            this._indicator = new Indicator(this);
-            Main.panel.addToStatusArea(this.uuid, this._indicator);
-        } else if (!show && this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
-        }
+        this._runtimeController = new RuntimeController(this);
+        this._runtimeController.enable();
     }
 
     disable() {
-        if (this._autoStartTimeoutId) {
-            GLib.source_remove(this._autoStartTimeoutId);
-            this._autoStartTimeoutId = null;
+        if (this._runtimeController) {
+            this._runtimeController.disable();
+            this._runtimeController = null;
         }
 
-        if (this._settingsSignalId) {
-            this._settings.disconnect(this._settingsSignalId);
-            this._settingsSignalId = null;
-        }
-
-        if (this._indicatorSignalId) {
-            this._settings.disconnect(this._indicatorSignalId);
-            this._indicatorSignalId = null;
-        }
-
-        if (this._wallpaper) {
-            this._wallpaper.stop();
-            this._wallpaper = null;
-        }
-
-        if (this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
-        }
-
-        if (this._autoPause) {
-            this._autoPause.stop();
-            this._autoPause = null;
-        }
-
-        if (this._windowFilter) {
-            this._windowFilter.disable();
-            this._windowFilter = null;
-        }
-
-        this._settings = null;
+        globalThis.debug = null;
     }
 }

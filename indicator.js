@@ -5,9 +5,9 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 export const Indicator = GObject.registerClass(
     class Indicator extends PanelMenu.Button {
-        _init(extension) {
+        _init(runtimeController) {
             super._init(0.0, "Wallpaper Engine");
-            this._extension = extension;
+            this._runtimeController = runtimeController;
 
             this.add_child(
                 new St.Icon({
@@ -24,13 +24,13 @@ export const Indicator = GObject.registerClass(
 
             const playItem = new PopupMenu.PopupMenuItem("Start Wallpaper");
             playItem.connect("activate", () => {
-                this._extension._wallpaper.start();
+                this._runtimeController.startPlayback();
             });
             this.menu.addMenuItem(playItem);
 
             const stopItem = new PopupMenu.PopupMenuItem("Stop Wallpaper");
             stopItem.connect("activate", () => {
-                this._extension._wallpaper.stop();
+                this._runtimeController.stopPlayback();
             });
             this.menu.addMenuItem(stopItem);
 
@@ -38,13 +38,13 @@ export const Indicator = GObject.registerClass(
 
             const prefsItem = new PopupMenu.PopupMenuItem("Settings");
             prefsItem.connect("activate", () => {
-                this._extension.openPreferences();
+                this._runtimeController.openPreferences();
             });
             this.menu.addMenuItem(prefsItem);
         }
 
         destroy() {
-            this._extension = null;
+            this._runtimeController = null;
             super.destroy();
         }
     }

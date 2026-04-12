@@ -1,6 +1,6 @@
-import Adw from "gi://Adw";
+import Adw from "gi://Adw?version=1";
 import Gio from "gi://Gio";
-import Gtk from "gi://Gtk";
+import Gtk from "gi://Gtk?version=4.0";
 
 export function buildGeneralPage(settings, ext) {
     const page = new Adw.PreferencesPage({
@@ -45,6 +45,13 @@ function buildBehaviorGroup(settings) {
         "Pause wallpaper when running on battery",
         settings,
         "pause-on-battery"
+    ));
+
+    group.add(createSwitchRow(
+        "Prevent Sleep",
+        "Keep the system awake while the wallpaper is running",
+        settings,
+        "inhibit-sleep"
     ));
 
     return group;

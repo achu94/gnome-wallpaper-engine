@@ -1,13 +1,48 @@
 import Meta from "gi://Meta";
 
+const DEFAULT_WALLPAPER_TITLE_PREFIX = "wallpaper_bg";
+const DEFAULT_WALLPAPER_WINDOW_CLASS = "wallpaper_bg";
+
 export class WindowUtils {
-    static isWallpaperWindow(metaWin) {
+    static get WALLPAPER_TITLE_PREFIX() {
+        return DEFAULT_WALLPAPER_TITLE_PREFIX;
+    }
+
+    static get WALLPAPER_WINDOW_CLASS() {
+        return DEFAULT_WALLPAPER_WINDOW_CLASS;
+    }
+
+    static isWallpaperWindow(metaWin, identity = null) {
         if (!metaWin) return false;
 
-        return (
-            metaWin.get_title() === "wallpaper_bg" ||
-            metaWin.get_wm_class() === "wallpaper_bg"
+        const titlePrefix = identity?.titlePrefix ?? DEFAULT_WALLPAPER_TITLE_PREFIX;
+        const wmClass = identity?.wmClass ?? DEFAULT_WALLPAPER_WINDOW_CLASS;
+        const processId = identity?.processId ?? 0;
+
+        const matchesWallpaperIdentity = (
+            this._getTitle(metaWin).startsWith(titlePrefix) ||
+            this._getWmClass(metaWin) === wmClass
         );
+
+        if (!matchesWallpaperIdentity) {
+            return false;
+        }
+
+        if (!processId) {
+            return true;
+        }
+
+        try {
+            const windowPid = metaWin.get_pid?.() ?? 0;
+
+            if (!windowPid) {
+                return true;
+            }
+
+            return windowPid === processId;
+        } catch (_) {
+            return true;
+        }
     }
 
     static _getTitle(metaWin) {

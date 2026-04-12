@@ -19,6 +19,10 @@
             <default>false</default>
             <summary>Pause when running on battery</summary>
         </key>
+        <key name="inhibit-sleep" type="b">
+            <default>true</default>
+            <summary>Prevent sleep while the wallpaper is running</summary>
+        </key>
         <key name="current-wallpaper" type="s">
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>

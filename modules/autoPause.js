@@ -1,42 +1,48 @@
 import Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import { WindowUtils } from "./windowUtils.js";
 
 export class AutoPause {
-    constructor(ext, wallpaper) {
-        this._ext = ext;
-        this._settings = ext._settings;
-        this._wallpaper = wallpaper;
-
-        this._timeoutId = null;
+    constructor(settings, playbackController) {
+        this._settings = settings;
+        this._playbackController = playbackController;
         this._isPaused = false;
 
         this._onBattery = false;
         this._upower = null;
         this._upowerSignalId = null;
+        this._trackedWorkspace = null;
+        this._workspaceSignalIds = [];
+        this._windowSignalMap = new Map();
+        this._activeWorkspaceChangedId = null;
 
         this._initBattery();
     }
 
     start() {
-        if (this._timeoutId) return;
+        if (this._activeWorkspaceChangedId) return;
 
-        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            this._checkConditions();
-            return GLib.SOURCE_CONTINUE;
-        });
+        this._activeWorkspaceChangedId = global.workspace_manager.connect(
+            "active-workspace-changed",
+            () => this._trackActiveWorkspace(),
+        );
+        this._trackActiveWorkspace();
+        this._checkConditions();
     }
 
     stop() {
-        if (this._timeoutId) {
-            GLib.source_remove(this._timeoutId);
-            this._timeoutId = null;
+        if (this._activeWorkspaceChangedId) {
+            global.workspace_manager.disconnect(this._activeWorkspaceChangedId);
+            this._activeWorkspaceChangedId = null;
         }
 
         if (this._upower && this._upowerSignalId) {
             this._upower.disconnect(this._upowerSignalId);
             this._upowerSignalId = null;
         }
+
+        this._disconnectWorkspaceSignals();
+        this._disconnectWindowSignals();
+        this._trackedWorkspace = null;
     }
 
     _initBattery() {
@@ -61,6 +67,7 @@ export class AutoPause {
                     this._onBattery = this._upower
                         .get_cached_property("OnBattery")
                         ?.deep_unpack() ?? false;
+                    this._checkConditions();
                 }
             );
         } catch (e) {
@@ -83,12 +90,14 @@ export class AutoPause {
         }
 
         if (shouldPause && !this._isPaused) {
-            this._wallpaper.stop();
-            this._isPaused = true;
+            if (this._playbackController.isRunning()) {
+                this._playbackController.stop();
+                this._isPaused = true;
+            }
         }
 
         if (!shouldPause && this._isPaused) {
-            this._wallpaper.start();
+            this._playbackController.start();
             this._isPaused = false;
         }
     }
@@ -109,5 +118,98 @@ export class AutoPause {
         }
 
         return false;
+    }
+
+    _trackActiveWorkspace() {
+        const activeWorkspace = global.workspace_manager.get_active_workspace();
+
+        if (activeWorkspace === this._trackedWorkspace) {
+            return;
+        }
+
+        this._disconnectWorkspaceSignals();
+        this._disconnectWindowSignals();
+        this._trackedWorkspace = activeWorkspace;
+
+        if (!this._trackedWorkspace) {
+            return;
+        }
+
+        this._workspaceSignalIds.push(
+            this._trackedWorkspace.connect("window-added", (_workspace, window) => {
+                this._trackWindow(window);
+                this._checkConditions();
+            }),
+        );
+        this._workspaceSignalIds.push(
+            this._trackedWorkspace.connect("window-removed", (_workspace, window) => {
+                this._untrackWindow(window);
+                this._checkConditions();
+            }),
+        );
+
+        for (const metaWindow of this._trackedWorkspace.list_windows()) {
+            this._trackWindow(metaWindow);
+        }
+    }
+
+    _trackWindow(metaWindow) {
+        if (!metaWindow || this._windowSignalMap.has(metaWindow)) {
+            return;
+        }
+
+        if (WindowUtils.isWallpaperWindow(metaWindow) || metaWindow.is_skip_taskbar?.()) {
+            return;
+        }
+
+        const signalIds = [
+            metaWindow.connect("notify::fullscreen", () => this._checkConditions()),
+            metaWindow.connect("notify::maximized-horizontally", () => this._checkConditions()),
+            metaWindow.connect("notify::maximized-vertically", () => this._checkConditions()),
+            metaWindow.connect("notify::minimized", () => this._checkConditions()),
+            metaWindow.connect("unmanaged", () => {
+                this._untrackWindow(metaWindow);
+                this._checkConditions();
+            }),
+        ];
+
+        this._windowSignalMap.set(metaWindow, signalIds);
+    }
+
+    _untrackWindow(metaWindow) {
+        const signalIds = this._windowSignalMap.get(metaWindow);
+
+        if (!signalIds) {
+            return;
+        }
+
+        for (const signalId of signalIds) {
+            try {
+                metaWindow.disconnect(signalId);
+            } catch (_) { }
+        }
+
+        this._windowSignalMap.delete(metaWindow);
+    }
+
+    _disconnectWorkspaceSignals() {
+        if (!this._trackedWorkspace) {
+            this._workspaceSignalIds = [];
+            return;
+        }
+
+        for (const signalId of this._workspaceSignalIds) {
+            try {
+                this._trackedWorkspace.disconnect(signalId);
+            } catch (_) { }
+        }
+
+        this._workspaceSignalIds = [];
+    }
+
+    _disconnectWindowSignals() {
+        for (const metaWindow of this._windowSignalMap.keys()) {
+            this._untrackWindow(metaWindow);
+        }
     }
 }
