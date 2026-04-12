@@ -1,3 +1,5 @@
+import Meta from "gi://Meta";
+
 export class WindowUtils {
     static isWallpaperWindow(metaWin) {
         if (!metaWin) return false;
@@ -6,6 +8,54 @@ export class WindowUtils {
             metaWin.get_title() === "wallpaper_bg" ||
             metaWin.get_wm_class() === "wallpaper_bg"
         );
+    }
+
+    static _getTitle(metaWin) {
+        return metaWin?.get_title?.() ?? metaWin?.title ?? "";
+    }
+
+    static _getWmClass(metaWin) {
+        return metaWin?.get_wm_class?.() ?? "";
+    }
+
+    static _isDesktopWindowType(metaWin) {
+        try {
+            return metaWin?.get_window_type?.() === Meta.WindowType.DESKTOP;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    static _hasDingDesktopTitle(metaWin) {
+        const title = this._getTitle(metaWin);
+
+        return (
+            title.startsWith("Desktop Icons ") ||
+            /^@![^;]+;.*B.*D.*H.*F/.test(title)
+        );
+    }
+
+    static _hasDesktopLikeClass(metaWin) {
+        const wmClass = this._getWmClass(metaWin).toLowerCase();
+
+        return wmClass.includes("ding") || wmClass.includes("conky");
+    }
+
+    static isDesktopWindow(metaWin) {
+        if (!metaWin || this.isWallpaperWindow(metaWin)) return false;
+
+        return (
+            this._isDesktopWindowType(metaWin) ||
+            this._hasDingDesktopTitle(metaWin) ||
+            this._hasDesktopLikeClass(metaWin)
+        );
+    }
+
+    static getDesktopWindows() {
+        return global
+            .get_window_actors()
+            .map((actor) => actor.get_meta_window())
+            .filter((metaWin) => this.isDesktopWindow(metaWin));
     }
 
     static _isWindowMaximized(metaWin) {

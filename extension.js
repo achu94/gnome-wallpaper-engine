@@ -106,6 +106,11 @@ export default class WallpaperExtension extends Extension {
             this._autoPause = null;
         }
 
+        if (this._windowFilter) {
+            this._windowFilter.disable();
+            this._windowFilter = null;
+        }
+
         this._settings = null;
     }
 }
