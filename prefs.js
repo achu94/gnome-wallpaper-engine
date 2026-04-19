@@ -2,6 +2,7 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 
 import { buildGalleryPage } from "./prefs/gallery.js";
 import { buildGeneralPage } from "./prefs/general.js";
+import { buildMultiScreenPage } from "./prefs/multiMonitor.js";
 
 export default class WallpaperPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -11,5 +12,6 @@ export default class WallpaperPrefs extends ExtensionPreferences {
 
         window.add(buildGalleryPage(this, window, settings));
         window.add(buildGeneralPage(settings, this));
+        window.add(buildMultiScreenPage(settings, this));
     }
 }

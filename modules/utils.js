@@ -1,5 +1,7 @@
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
+import Adw from "gi://Adw";
+import Gdk from "gi://Gdk";
 
 export function debug(msg) {
     try {
@@ -51,4 +53,29 @@ export function ensureBackgroundsDir() {
     }
 
     return directory;
+}
+
+export function getMonitors() {
+    const display = Gdk.Display.get_default();
+    const monitors = display.get_monitors();
+    const numMonitors = monitors.get_n_items();
+
+    let monitorList = [];
+
+    for (let i = 0; i < numMonitors; i++) {
+        const monitor = monitors.get_item(i);
+        const geometry = monitor.get_geometry();
+
+        monitorList.push({
+            id: i,
+            width: geometry.width,
+            height: geometry.height,
+            x: geometry.x,
+            y: geometry.y,
+            model: monitor.get_model() || `Monitor ${i + 1}`,
+            scale: monitor.get_scale_factor(),
+        });
+    }
+
+    return monitorList;
 }

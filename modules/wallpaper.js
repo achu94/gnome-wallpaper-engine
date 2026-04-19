@@ -2,22 +2,16 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
-import { StaticWallpaper } from "./staticWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
         this._ext = ext;
         this._windowFilter = windowFilter;
-        this._staticWallpaper = new StaticWallpaper();
 
-        this._mpvProcess = null;
+        this._mpvProcesses = [];
+        this._wallpaperWindows = [];
         this._findWindowTimeoutId = null;
-
-        this._wallpaperWindow = null;
-        this._raisedSignalId = null;
-        this._windowCreatedId = null;
-        this._lowerFixApplied = false;
     }
 
     start() {
@@ -26,147 +20,154 @@ export class Wallpaper {
         const settings = this._ext._settings;
         const filename = settings.get_string("current-wallpaper");
         if (!filename) return;
-        
-        const bgDir = getBackgroundsDir();
-        
-        const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        const baseName = filename.substring(0, filename.lastIndexOf("."));
-        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.webp`]);
+        const videoPath = GLib.build_filenamev([getBackgroundsDir(), filename]);
 
-        this._staticWallpaper.set(thumbPath);
+        const monitors = this.monitors();
 
+        // 🌍 Gesamte virtuelle Desktopfläche berechnen
+        let minX = Infinity,
+            minY = Infinity;
+        let maxX = -Infinity,
+            maxY = -Infinity;
+
+        for (const m of monitors) {
+            minX = Math.min(minX, m.x);
+            minY = Math.min(minY, m.y);
+            maxX = Math.max(maxX, m.x + m.width);
+            maxY = Math.max(maxY, m.y + m.height);
+        }
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // 🎬 EIN mpv für alles
         const cmd = [
             "mpv",
             "--no-border",
             "--loop=inf",
             "--no-audio",
             "--force-window=yes",
-            "--ontop=no",
             "--keep-open=yes",
-            "--geometry=100%x100%",
             "--no-osc",
             "--no-osd-bar",
-            "--title=wallpaper_bg",
-            "--x11-name=wallpaper_bg",
-            "--panscan=1.0",
-            "--video-unscaled=no",
-            "--input-default-bindings=no",
-            "--input-vo-keyboard=no",
-            "--cursor-autohide=no",
             "--hwdec=auto",
+
+            // 🧠 wichtig für Stretch / Fill
+            "--video-unscaled=no",
+            "--panscan=1.0",
+
+            // 🖥️ gesamte Desktopfläche
+            `--geometry=${width}x${height}+${minX}+${minY}`,
+
+            "--title=wallpaper",
+            "--x11-name=wallpaper",
+
             videoPath,
         ];
 
-        try {
-            this._mpvProcess = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
+        const proc = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
+        this._mpvProcesses.push(proc);
 
-            let attempts = 0;
+        this._trackWindows();
+    }
 
-            const findWindow = () => {
-                if (!this._mpvProcess) {
-                    this._findWindowTimeoutId = null;
-                    return GLib.SOURCE_REMOVE;
-                }
+    _trackWindows() {
+        let attempts = 0;
 
-                const found = this._applyWindowRules();
+        this._findWindowTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            200,
+            () => {
+                this._applyWindowRules();
+
                 attempts++;
-
-                if (found || attempts >= 40) {
-                    this._findWindowTimeoutId = null;
-                    return GLib.SOURCE_REMOVE;
-                }
+                if (attempts > 60) return GLib.SOURCE_REMOVE;
 
                 return GLib.SOURCE_CONTINUE;
-            };
-
-            this._findWindowTimeoutId = GLib.timeout_add(
-                GLib.PRIORITY_DEFAULT,
-                150,
-                findWindow
-            );
-
-        } catch (e) {
-            logError(e);
-        }
+            },
+        );
     }
 
     _applyWindowRules() {
-        const windows = global.get_window_actors();
+        const actors = global.get_window_actors();
 
-        for (const actor of windows) {
-            const metaWin = actor.get_meta_window();
+        for (const actor of actors) {
+            const win = actor.get_meta_window();
 
-            if (WindowUtils.isWallpaperWindow(metaWin)) {
-                metaWin.lower();
-                metaWin.stick();
-                metaWin.focus_on_click = false;
+            if (!WindowUtils.isWallpaperWindow(win)) continue;
 
+            if (this._wallpaperWindows.includes(win)) continue;
+
+            this._wallpaperWindows.push(win);
+
+            win.stick();
+            win.lower();
+
+            try {
+                win.set_accept_focus(false);
+            } catch {}
+            win.focus_on_click = false;
+
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
                 try {
-                    metaWin.set_accept_focus(false);
-                } catch (_) { }
+                    win.set_input_region(null);
+                } catch {}
+                return GLib.SOURCE_REMOVE;
+            });
 
-                if (!this._lowerFixApplied) {
-                    this._lowerFixApplied = true;
+            // dauerhaft unten halten
+            let count = 0;
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                try {
+                    win.lower();
+                } catch {}
+                return ++count < 10;
+            });
 
-                    let count = 0;
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                        if (metaWin) metaWin.lower();
-                        count++;
-                        return count < 5;
-                    });
-                }
+            win.connect("raised", () => win.lower());
 
-                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    try {
-                        metaWin.set_input_region(null);
-                    } catch (_) { }
-                    return GLib.SOURCE_REMOVE;
-                });
+            global.display.connect("window-created", () => {
+                this._wallpaperWindows.forEach((w) => w.lower());
+            });
 
-                if (!this._wallpaperWindow) {
-                    this._wallpaperWindow = metaWin;
-
-                    if (this._windowFilter) {
-                        this._windowFilter.addWindow(metaWin);
-                    }
-
-                    this._raisedSignalId = metaWin.connect("raised", () => {
-                        metaWin.lower();
-                    });
-
-                    this._windowCreatedId = global.display.connect('window-created', () => {
-                        if (this._wallpaperWindow) {
-                            this._wallpaperWindow.lower();
-                        }
-                    });
-                }
-
-                return true;
-            }
+            if (this._windowFilter) this._windowFilter.addWindow(win);
         }
-
-        return false;
     }
 
     stop() {
-        if (this._mpvProcess) {
-            this._mpvProcess.force_exit();
-            this._mpvProcess = null;
+        this._mpvProcesses.forEach((p) => {
+            try {
+                p.force_exit();
+            } catch {}
+        });
+
+        this._mpvProcesses = [];
+        this._wallpaperWindows = [];
+
+        if (this._findWindowTimeoutId) {
+            GLib.source_remove(this._findWindowTimeoutId);
+            this._findWindowTimeoutId = null;
+        }
+    }
+
+    monitors() {
+        const display = global.display;
+        const n = display.get_n_monitors();
+
+        const list = [];
+
+        for (let i = 0; i < n; i++) {
+            const g = display.get_monitor_geometry(i);
+
+            list.push({
+                x: g.x,
+                y: g.y,
+                width: g.width,
+                height: g.height,
+            });
         }
 
-        this._lowerFixApplied = false;
-
-        if (this._raisedSignalId && this._wallpaperWindow) {
-            this._wallpaperWindow.disconnect(this._raisedSignalId);
-            this._raisedSignalId = null;
-        }
-
-        if (this._windowCreatedId) {
-            global.display.disconnect(this._windowCreatedId);
-            this._windowCreatedId = null;
-        }
-
-        this._wallpaperWindow = null;
+        return list;
     }
 }
