@@ -2,12 +2,14 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
+import { StaticWallpaper } from "./staticWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
         this._ext = ext;
         this._windowFilter = windowFilter;
+        this._staticWallpaper = new StaticWallpaper();
 
         this._mpvProcesses = [];
         this._findWindowTimeoutId = null;
@@ -232,6 +234,11 @@ export class Wallpaper {
             global.display.disconnect(this._grabOpEndId);
             this._grabOpEndId = null;
         }
+
+        if (this._windowCreatedId) {
+            global.display.disconnect(this._windowCreatedId);
+            this._windowCreatedId = null;
+        }
     }
 
     monitors() {
@@ -251,6 +258,6 @@ export class Wallpaper {
             });
         }
 
-        this._wallpaperWindows.clear();
+        return list;
     }
 }
