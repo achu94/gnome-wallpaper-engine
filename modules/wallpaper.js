@@ -239,6 +239,8 @@ export class Wallpaper {
             global.display.disconnect(this._windowCreatedId);
             this._windowCreatedId = null;
         }
+
+        this._wallpaperWindows.clear();
     }
 
     monitors() {
