@@ -2,10 +2,9 @@ export class WindowUtils {
     static isWallpaperWindow(metaWin) {
         if (!metaWin) return false;
 
-        return (
-            metaWin.get_title() === "wallpaper_bg" ||
-            metaWin.get_wm_class() === "wallpaper_bg"
-        );
+        const title = metaWin.get_title() ?? "";
+        const instance = metaWin.get_wm_class_instance?.() ?? "";
+        return title.startsWith("wallpaper_bg") || instance.startsWith("wallpaper_bg");
     }
 
     static _isWindowMaximized(metaWin) {

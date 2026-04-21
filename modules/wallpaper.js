@@ -10,8 +10,12 @@ export class Wallpaper {
         this._windowFilter = windowFilter;
 
         this._mpvProcesses = [];
-        this._wallpaperWindows = [];
         this._findWindowTimeoutId = null;
+
+        this._wallpaperWindows = new Map();
+        this._raisedSignalIds = new Map();
+        this._windowCreatedId = null;
+        this._grabOpEndId = null;
     }
 
     start() {
@@ -21,133 +25,212 @@ export class Wallpaper {
         const filename = settings.get_string("current-wallpaper");
         if (!filename) return;
 
-        const videoPath = GLib.build_filenamev([getBackgroundsDir(), filename]);
+        const bgDir = getBackgroundsDir();
+        const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        const monitors = this.monitors();
+        const baseName = filename.substring(0, filename.lastIndexOf("."));
+        const thumbPath = GLib.build_filenamev([
+            bgDir,
+            `${baseName}-thumb.webp`,
+        ]);
 
-        // 🌍 Gesamte virtuelle Desktopfläche berechnen
-        let minX = Infinity,
-            minY = Infinity;
-        let maxX = -Infinity,
-            maxY = -Infinity;
+        this._staticWallpaper.set(thumbPath);
 
-        for (const m of monitors) {
-            minX = Math.min(minX, m.x);
-            minY = Math.min(minY, m.y);
-            maxX = Math.max(maxX, m.x + m.width);
-            maxY = Math.max(maxY, m.y + m.height);
+        const nMonitors = global.display.get_n_monitors();
+
+        // Snap wallpaper windows back if user tries to move/resize them
+        this._grabOpEndId = global.display.connect(
+            "grab-op-end",
+            (display, window) => {
+                for (const [monitorIndex, win] of this._wallpaperWindows) {
+                    if (win === window) {
+                        const monitor =
+                            global.display.get_monitor_geometry(monitorIndex);
+                        win.move_resize_frame(
+                            true,
+                            monitor.x,
+                            monitor.y,
+                            monitor.width,
+                            monitor.height,
+                        );
+                        win.lower();
+                        break;
+                    }
+                }
+            },
+        );
+
+        // Connect window-created before spawning so we catch windows immediately
+        this._windowCreatedId = global.display.connect(
+            "window-created",
+            (_, metaWin) => {
+                // Lower existing wallpaper windows whenever any new window appears
+                for (const [, win] of this._wallpaperWindows) {
+                    try {
+                        win.lower();
+                    } catch (_) {}
+                }
+                // Try to claim this new window as a wallpaper window
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    this._tryClaim(metaWin);
+                    return GLib.SOURCE_REMOVE;
+                });
+            },
+        );
+
+        for (let i = 0; i < nMonitors; i++) {
+            const title = `wallpaper_bg_${i}`;
+            const monitor = global.display.get_monitor_geometry(i);
+
+            const cmd = [
+                "mpv",
+                "--no-border",
+                "--loop=inf",
+                "--no-audio",
+                "--force-window=yes",
+                "--ontop=no",
+                "--keep-open=yes",
+                "--no-osc",
+                "--no-osd-bar",
+                `--title=${title}`,
+                `--geometry=${monitor.width}x${monitor.height}`,
+                "--panscan=1.0",
+                "--video-unscaled=no",
+                "--input-default-bindings=no",
+                "--input-vo-keyboard=no",
+                "--cursor-autohide=no",
+                "--hwdec=auto",
+                videoPath,
+            ];
+
+            try {
+                const process = Gio.Subprocess.new(
+                    cmd,
+                    Gio.SubprocessFlags.NONE,
+                );
+                this._mpvProcesses.push(process);
+            } catch (e) {
+                logError(e);
+            }
         }
 
-        const width = maxX - minX;
-        const height = maxY - minY;
-
-        // 🎬 EIN mpv für alles
-        const cmd = [
-            "mpv",
-            "--no-border",
-            "--loop=inf",
-            "--no-audio",
-            "--force-window=yes",
-            "--keep-open=yes",
-            "--no-osc",
-            "--no-osd-bar",
-            "--hwdec=auto",
-
-            // 🧠 wichtig für Stretch / Fill
-            "--video-unscaled=no",
-            "--panscan=1.0",
-
-            // 🖥️ gesamte Desktopfläche
-            `--geometry=${width}x${height}+${minX}+${minY}`,
-
-            "--title=wallpaper",
-            "--x11-name=wallpaper",
-
-            videoPath,
-        ];
-
-        const proc = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
-        this._mpvProcesses.push(proc);
-
-        this._trackWindows();
-    }
-
-    _trackWindows() {
+        // Polling fallback for windows whose titles are set slightly late
         let attempts = 0;
+        const findWindow = () => {
+            if (this._mpvProcesses.length === 0) {
+                this._findWindowTimeoutId = null;
+                return GLib.SOURCE_REMOVE;
+            }
+
+            for (const actor of global.get_window_actors()) {
+                this._tryClaim(actor.get_meta_window());
+            }
+
+            attempts++;
+
+            if (this._wallpaperWindows.size >= nMonitors || attempts >= 50) {
+                this._findWindowTimeoutId = null;
+                return GLib.SOURCE_REMOVE;
+            }
+
+            return GLib.SOURCE_CONTINUE;
+        };
 
         this._findWindowTimeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             200,
-            () => {
-                this._applyWindowRules();
-
-                attempts++;
-                if (attempts > 60) return GLib.SOURCE_REMOVE;
-
-                return GLib.SOURCE_CONTINUE;
-            },
+            findWindow,
         );
     }
 
-    _applyWindowRules() {
-        const actors = global.get_window_actors();
+    _tryClaim(metaWin) {
+        if (!metaWin) return;
+        if (!WindowUtils.isWallpaperWindow(metaWin)) return;
 
-        for (const actor of actors) {
-            const win = actor.get_meta_window();
+        const title = metaWin.get_title() ?? "";
+        const match = title.match(/wallpaper_bg_(\d+)/);
+        if (!match) return;
 
-            if (!WindowUtils.isWallpaperWindow(win)) continue;
+        const monitorIndex = parseInt(match[1]);
+        if (this._wallpaperWindows.has(monitorIndex)) return;
 
-            if (this._wallpaperWindows.includes(win)) continue;
+        const monitor = global.display.get_monitor_geometry(monitorIndex);
 
-            this._wallpaperWindows.push(win);
-
-            win.stick();
+        const applyGeometry = (win) => {
+            win.move_to_monitor(monitorIndex);
+            // user_op=true bypasses Mutter's placement constraints so we hit exact coords
+            win.move_resize_frame(
+                true,
+                monitor.x,
+                monitor.y,
+                monitor.width,
+                monitor.height,
+            );
             win.lower();
+        };
 
+        applyGeometry(metaWin);
+        metaWin.stick();
+        metaWin.focus_on_click = false;
+
+        try {
+            metaWin.set_accept_focus(false);
+        } catch (_) {}
+
+        // Re-apply geometry several times to fight GNOME Shell's initial placement passes
+        let count = 0;
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            if (!metaWin) return GLib.SOURCE_REMOVE;
+            applyGeometry(metaWin);
+            count++;
+            return count < 10 ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
+        });
+
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             try {
-                win.set_accept_focus(false);
-            } catch {}
-            win.focus_on_click = false;
+                metaWin.set_input_region(null);
+            } catch (_) {}
+            return GLib.SOURCE_REMOVE;
+        });
 
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                try {
-                    win.set_input_region(null);
-                } catch {}
-                return GLib.SOURCE_REMOVE;
-            });
+        this._wallpaperWindows.set(monitorIndex, metaWin);
 
-            // dauerhaft unten halten
-            let count = 0;
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                try {
-                    win.lower();
-                } catch {}
-                return ++count < 10;
-            });
-
-            win.connect("raised", () => win.lower());
-
-            global.display.connect("window-created", () => {
-                this._wallpaperWindows.forEach((w) => w.lower());
-            });
-
-            if (this._windowFilter) this._windowFilter.addWindow(win);
+        if (this._windowFilter) {
+            this._windowFilter.addWindow(metaWin);
         }
+
+        const raisedId = metaWin.connect("raised", () =>
+            applyGeometry(metaWin),
+        );
+        this._raisedSignalIds.set(monitorIndex, raisedId);
     }
 
     stop() {
-        this._mpvProcesses.forEach((p) => {
-            try {
-                p.force_exit();
-            } catch {}
-        });
-
-        this._mpvProcesses = [];
-        this._wallpaperWindows = [];
-
         if (this._findWindowTimeoutId) {
             GLib.source_remove(this._findWindowTimeoutId);
             this._findWindowTimeoutId = null;
+        }
+
+        for (const process of this._mpvProcesses) {
+            try {
+                process.force_exit();
+            } catch (_) {}
+        }
+        this._mpvProcesses = [];
+
+        for (const [monitorIndex, signalId] of this._raisedSignalIds) {
+            const win = this._wallpaperWindows.get(monitorIndex);
+            if (win) {
+                try {
+                    win.disconnect(signalId);
+                } catch (_) {}
+            }
+        }
+        this._raisedSignalIds.clear();
+
+        if (this._grabOpEndId) {
+            global.display.disconnect(this._grabOpEndId);
+            this._grabOpEndId = null;
         }
     }
 
@@ -168,6 +251,6 @@ export class Wallpaper {
             });
         }
 
-        return list;
+        this._wallpaperWindows.clear();
     }
 }

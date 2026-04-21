@@ -52,6 +52,12 @@ export default class WallpaperExtension extends Extension {
             () => this._wallpaper.start()
         );
 
+        this._monitorsChangedId = global.display.connect("monitors-changed", () => {
+            if (this._settings.get_string("current-wallpaper") !== "") {
+                this._wallpaper.start();
+            }
+        });
+
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
@@ -84,6 +90,11 @@ export default class WallpaperExtension extends Extension {
         if (this._settingsSignalId) {
             this._settings.disconnect(this._settingsSignalId);
             this._settingsSignalId = null;
+        }
+
+        if (this._monitorsChangedId) {
+            global.display.disconnect(this._monitorsChangedId);
+            this._monitorsChangedId = null;
         }
 
         if (this._indicatorSignalId) {
