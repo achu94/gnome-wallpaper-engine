@@ -3,7 +3,7 @@ import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
-import { getBackgroundsDir } from "./utils.js";
+import { debug, getBackgroundsDir } from "./utils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -12,11 +12,13 @@ export class Wallpaper {
         this._staticWallpaper = new StaticWallpaper();
 
         this._mpvProcesses = [];
+        this._mpvPids = new Set();
         this._findWindowTimeoutId = null;
 
         this._wallpaperWindows = new Map();
         this._raisedSignalIds = new Map();
         this._windowCreatedId = null;
+        this._grabOpBeginId = null;
         this._grabOpEndId = null;
     }
 
@@ -72,7 +74,18 @@ export class Wallpaper {
                         win.lower();
                     } catch (_) {}
                 }
-                // Try to claim this new window as a wallpaper window
+
+                // If this window belongs to one of our MPV processes, neutralise it
+                // immediately — before GNOME Shell's mapWindow raises/focuses it.
+                // The title may not be set yet at this point, so PID is the only
+                // reliable identifier this early.
+                if (this._mpvPids.has(metaWin.get_pid())) {
+                    try { metaWin.lower(); } catch (_) {}
+                    try { metaWin.set_accept_focus(false); } catch (_) {}
+                    metaWin.focus_on_click = false;
+                }
+
+                // Full claim (needs the title, so give MPV a tick to set it)
                 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                     this._tryClaim(metaWin);
                     return GLib.SOURCE_REMOVE;
@@ -111,6 +124,8 @@ export class Wallpaper {
                     Gio.SubprocessFlags.NONE,
                 );
                 this._mpvProcesses.push(process);
+                const pid = parseInt(process.get_identifier());
+                if (pid > 0) this._mpvPids.add(pid);
             } catch (e) {
                 logError(e);
             }
@@ -219,6 +234,7 @@ export class Wallpaper {
             } catch (_) {}
         }
         this._mpvProcesses = [];
+        this._mpvPids.clear();
 
         for (const [monitorIndex, signalId] of this._raisedSignalIds) {
             const win = this._wallpaperWindows.get(monitorIndex);

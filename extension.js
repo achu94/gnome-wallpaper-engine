@@ -52,7 +52,8 @@ export default class WallpaperExtension extends Extension {
             () => this._wallpaper.start()
         );
 
-        this._monitorsChangedId = global.display.connect("monitors-changed", () => {
+        this._monitorManager = global.backend.get_monitor_manager();
+        this._monitorsChangedId = this._monitorManager.connect("monitors-changed", () => {
             if (this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
             }
@@ -93,9 +94,10 @@ export default class WallpaperExtension extends Extension {
         }
 
         if (this._monitorsChangedId) {
-            global.display.disconnect(this._monitorsChangedId);
+            this._monitorManager?.disconnect(this._monitorsChangedId);
             this._monitorsChangedId = null;
         }
+        this._monitorManager = null;
 
         if (this._indicatorSignalId) {
             this._settings.disconnect(this._indicatorSignalId);
