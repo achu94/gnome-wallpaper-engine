@@ -36,7 +36,7 @@ export class Wallpaper {
         const baseName = filename.substring(0, filename.lastIndexOf("."));
         const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.webp`]);
 
-        const thumbFile = Gio.File.new_for_path(videoThumbPath);
+        const thumbFile = Gio.File.new_for_path(thumbPath);
 
         const cmd = [
             "mpv",
