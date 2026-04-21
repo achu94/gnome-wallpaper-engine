@@ -4,7 +4,7 @@ import Cairo from "gi://cairo";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
-import { WallpaperClone } from "./wallpaperClone.js"
+import { WallpaperClone } from "./wallpaperClone.js";
 export class Wallpaper {
     constructor(ext, windowFilter) {
         debug("Wallpaper: Initializing");
@@ -16,37 +16,7 @@ export class Wallpaper {
 
         this._raisedSignalId = null;
         this._windowCreatedId = null;
-        this._clone = null;
         this._staticWallpaper = new StaticWallpaper();
-    }
-
-    _createClone(metaWin) {
-        let actor = metaWin.get_compositor_private();
-        if (!actor) {
-            debug(
-                "Wallpaper: No compositor_private found. Aborting clone creation.",
-            );
-            return null;
-        }
-
-        const clutterClone = new Clutter.Clone({
-            source: actor,
-            reactive: false,
-            layout_manager: null,
-        });
-
-        let monitor = Main.layoutManager.primaryMonitor;
-        clutterClone.set_position(monitor.x, monitor.y);
-        clutterClone.set_size(monitor.width, monitor.height);
-
-        Main.layoutManager._backgroundGroup.insert_child_at_index(
-            clutterClone,
-            0,
-        );
-        clutterClone.lower_bottom();
-
-        debug("Wallpaper: Clone successfully added to _backgroundGroup.");
-        return clutterClone;
     }
 
     start() {
@@ -164,7 +134,6 @@ export class Wallpaper {
                 this._windowFilter.addWindow(metaWin);
             }
 
-            metaWin.set_skip_taskbar(true);
             metaWin.stick();
             metaWin.focus_on_click = false;
             metaWin.lower();
@@ -183,9 +152,7 @@ export class Wallpaper {
             actor.translation_y = -10000;
             actor.reactive = false;
 
-            if (!this._clone) {
-                this._clone = new WallpaperClone(metaWin);
-            }
+            new WallpaperClone(metaWin);
 
             if (!this._raisedSignalId) {
                 this._raisedSignalId = metaWin.connect("raised", () => {
@@ -217,11 +184,6 @@ export class Wallpaper {
 
         if (this._windowFilter && this._wallpaperWindow) {
             this._windowFilter.removeWindow(this._wallpaperWindow);
-        }
-
-        if (this._clone) {
-            this._clone.destroy();
-            this._clone = null;
         }
 
         this._wallpaperWindow = null;

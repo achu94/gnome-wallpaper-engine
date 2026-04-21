@@ -1,39 +1,53 @@
-import Clutter from 'gi://Clutter';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import Clutter from "gi://Clutter";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 export class WallpaperClone {
-
     constructor(metaWin) {
         this._metaWin = metaWin;
-        this._clone = this._createClone(metaWin);
+        this._clones = this._createClones(metaWin);
     }
 
-    _createClone(metaWin) {
-        if (!metaWin || !WindowUtils.isWallpaperWindow(metaWin)) {
-            log("Wallpaper: Window not allowed. Skipping clone.");
-            return null;
-        }
-
+    _createClones(metaWin) {
         let actor = metaWin.get_compositor_private();
         if (!actor) {
-            log("Wallpaper: No compositor_private found. Aborting clone creation.");
-            return null;
+            console.log(
+                "Wallpaper: No compositor_private found. Aborting clone creation.",
+            );
+            return [];
         }
 
-        const clutterClone = new Clutter.Clone({
-            source: actor,
-            reactive: false,
-            layout_manager: null,
+        let clones = [];
+        let monitors = Main.layoutManager.monitors;
+
+        Main.notify(`CLONE: ${monitors.length}`);
+
+        for (let monitor of monitors) {
+            const clutterClone = new Clutter.Clone({
+                source: actor,
+                reactive: false,
+            });
+
+            clutterClone.set_position(monitor.x, monitor.y);
+            clutterClone.set_size(monitor.width, monitor.height);
+
+            Main.layoutManager._backgroundGroup.insert_child_at_index(
+                clutterClone,
+                0,
+            );
+
+            clones.push(clutterClone);
+        }
+
+        console.log(`Wallpaper: ${clones.length} clones successfully added.`);
+        return clones;
+    }
+
+    destroy() {
+        this._clones.forEach((clone) => {
+            if (clone) {
+                clone.destroy();
+            }
         });
-
-        let monitor = Main.layoutManager.primaryMonitor;
-        clutterClone.set_position(monitor.x, monitor.y);
-        clutterClone.set_size(monitor.width, monitor.height);
-
-        Main.layoutManager._backgroundGroup.insert_child_at_index(clutterClone, 0);
-        clutterClone.lower_bottom();
-
-        log("Wallpaper: Clone successfully added to _backgroundGroup.");
-        return clutterClone;
+        this._clones = [];
     }
 }
