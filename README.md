@@ -1,5 +1,7 @@
 # 🌌 GNOME Live Wallpaper Engine
 
+> **[Install now on GNOME Extensions](https://extensions.gnome.org/extension/9558/gnome-wallpaper-engine/)**
+
 No complex setup. No heavy dependencies. Just mpv, ffmpeg + the extension.
 
 The **simplest and most reliable way** to use live wallpapers on GNOME — fully compatible with **Wayland & X11**.
@@ -86,7 +88,14 @@ sudo zypper in mpv ffmpeg
 
 ## 📦 Installation
 
-### ⚡ Quick Install (Recommended)
+### 🎖️ Official GNOME Extensions (Easiest)
+Install it directly from the GNOME Extensions website:
+
+**[Download on GNOME Extensions](https://extensions.gnome.org/extension/9558/gnome-wallpaper-engine/)**
+
+---
+
+### ⚡ Quick Install (Local ZIP)
 
 ```bash
 gnome-extensions install gnome-wallpaper-engine@gjs.com.zip
