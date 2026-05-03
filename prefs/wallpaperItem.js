@@ -18,7 +18,7 @@ export function createWallpaperItem(dir, fileName) {
     const lastDot = fileName.lastIndexOf(".");
     const baseName = lastDot !== -1 ? fileName.substring(0, lastDot) : fileName;
 
-    const thumbPath = `${dir}/${baseName}-thumb.webp`;
+    const thumbPath = `${dir}/${baseName}-thumb.jpg`;
     const thumbFile = Gio.File.new_for_path(thumbPath);
 
     let image;
@@ -31,14 +31,12 @@ export function createWallpaperItem(dir, fileName) {
         });
     }
 
-    // 👉 Thumbnail größer & schöner
     image.set_size_request(200, 120);
 
     if (image instanceof Gtk.Picture) {
         image.set_content_fit(Gtk.ContentFit.COVER);
     }
 
-    // 👉 kleine abgerundete Ecken
     image.add_css_class("rounded");
 
     box.append(image);

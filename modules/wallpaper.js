@@ -33,10 +33,7 @@ export class Wallpaper {
         const videoPath = GLib.build_filenamev([bgDir, filename]);
 
         const baseName = filename.substring(0, filename.lastIndexOf("."));
-        const thumbPath = GLib.build_filenamev([
-            bgDir,
-            `${baseName}-thumb.webp`,
-        ]);
+        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
 
         this._staticWallpaper.set(thumbPath);
 
