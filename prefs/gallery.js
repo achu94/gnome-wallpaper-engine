@@ -73,7 +73,7 @@ export function buildGalleryPage(ext, window, settings) {
     const ensureThumbnail = async (fileName) => {
         const fullPath = `${bgDir}/${fileName}`;
         const baseName = fileName.substring(0, fileName.lastIndexOf("."));
-        const thumbPath = `${bgDir}/${baseName}-thumb.webp`;
+        const thumbPath = `${bgDir}/${baseName}-thumb.jpg`;
 
         const thumbFile = Gio.File.new_for_path(thumbPath);
 
