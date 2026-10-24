@@ -118,6 +118,8 @@ export class Wallpaper {
                 this._wallpaperWindow = metaWindow;
                 this._windowFilter?.addWindow(metaWindow);
                 this._raisedSignalId = metaWindow.connect("raised", () => metaWindow.lower());
+                // DING also lowers itself on click and ends up under mpv; keep mpv at the very bottom
+                this._restackedId = global.display.connect("restacked", () => this._wallpaperWindow?.lower());
                 this._windowCreatedId = global.display.connect("window-created", () => {
                     if (this._wallpaperWindow) this._wallpaperWindow.lower();
                 });
@@ -144,6 +146,10 @@ export class Wallpaper {
         if (this._raisedSignalId && this._wallpaperWindow) {
             this._wallpaperWindow.disconnect(this._raisedSignalId);
             this._raisedSignalId = null;
+        }
+        if (this._restackedId) {
+            global.display.disconnect(this._restackedId);
+            this._restackedId = null;
         }
         if (this._windowCreatedId) {
             global.display.disconnect(this._windowCreatedId);
