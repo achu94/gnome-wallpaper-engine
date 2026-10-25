@@ -101,11 +101,8 @@ export class AutoPause {
             if (!metaWin) continue;
 
             if (WindowUtils.isWallpaperWindow(metaWin)) continue;
-            if (!WindowUtils.isFullscreenLike(metaWin)) continue;
-
-            if (WindowUtils.fillsMonitor(metaWin)) {
-                return true;
-            }
+            // only real fullscreen; maximized windows (browser, terminal) must not pause the wallpaper
+            if (metaWin.is_fullscreen()) return true;
         }
 
         return false;
