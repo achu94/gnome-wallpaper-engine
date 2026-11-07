@@ -15,9 +15,9 @@ export default class WallpaperExtension extends Extension {
     enable() {
         this._mpvExists = GLib.find_program_in_path("mpv");
         this._ffmpegExists = GLib.find_program_in_path('ffmpeg');
-        
+
         let missing = [];
-        
+
         if (!this._mpvExists) {
             missing.push("'mpv'");
         }
@@ -25,13 +25,13 @@ export default class WallpaperExtension extends Extension {
         if (!this._ffmpegExists) {
             missing.push("'ffmpeg'");
         }
-        
+
         if (missing.length > 0) {
             let msg = "Error: Missing dependencies: " + missing.join(" and ");
             Main.notify("Gnome Live Wallpaper", msg);
             return;
         }
-        
+
         globalThis.debug = debug;
 
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
@@ -45,7 +45,7 @@ export default class WallpaperExtension extends Extension {
             ? Gnome50Wallpaper
             : LegacyWallpaper;
         this._wallpaper = new WallpaperRenderer(this, this._windowFilter);
-        
+
         this._indicatorSignalId = this._settings.connect(
             "changed::show-indicator",
             () => this._updateIndicatorVisibility()
@@ -57,13 +57,18 @@ export default class WallpaperExtension extends Extension {
             () => this._wallpaper.start()
         );
 
+        this._audioSettingSignalId = this._settings.connect(
+            "changed::play-audio",
+            () => this._wallpaper.start()
+        );
+
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
             }
             return GLib.SOURCE_REMOVE;
         });
-        
+
         this._autoPause = new AutoPause(this, this._wallpaper);
         this._autoPause.start();
     }
@@ -94,6 +99,11 @@ export default class WallpaperExtension extends Extension {
         if (this._indicatorSignalId) {
             this._settings.disconnect(this._indicatorSignalId);
             this._indicatorSignalId = null;
+        }
+
+        if (this._audioSettingSignalId) {
+            this._settings.disconnect(this._audioSettingSignalId);
+            this._audioSettingSignalId = null;
         }
 
         if (this._wallpaper) {

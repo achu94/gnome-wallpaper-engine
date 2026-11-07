@@ -10,6 +10,10 @@
             <default>true</default>
             <summary>Show or hide the tray icon</summary>
         </key>
+        <key name="play-audio" type="b">
+            <default>true</default>
+            <summary>Play audio when the wallpaper is active</summary>
+        </key>
         <key name="pause-on-fullscreen" type="b">
             <default>true</default>
             <summary>Pause when a fullscreen application is active</summary>

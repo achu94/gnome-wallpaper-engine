@@ -36,7 +36,6 @@ export class Wallpaper {
             "mpv",
             "--no-border",
             "--loop=inf",
-            "--no-audio",
             "--force-window=yes",
             "--ontop=no",
             "--keep-open=yes",
@@ -51,6 +50,7 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--hwdec=auto",
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
             videoPath,
         ];
 

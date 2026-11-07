@@ -101,7 +101,6 @@ export class Wallpaper {
             "--hwdec=auto",
             "--no-border",
             "--loop-file=inf",
-            "--no-audio",
             "--force-window=immediate",
             `--title=${windowTitle}`,
             `--geometry=${sourceMonitor.width}x${sourceMonitor.height}+0+0`,
@@ -116,6 +115,7 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--no-terminal",
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
             videoPath,
         ];
 

@@ -34,6 +34,13 @@ function buildBehaviorGroup(settings) {
     ));
 
     group.add(createSwitchRow(
+        "Play Audio",
+        "Play audio when the wallpaper is active",
+        settings,
+        "play-audio"
+    ));
+
+    group.add(createSwitchRow(
         "Pause on Fullscreen",
         "Pause wallpaper when a fullscreen app is active",
         settings,
