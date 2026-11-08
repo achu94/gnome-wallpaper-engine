@@ -7,3 +7,11 @@
 .card:selected {
     border-color: #3584e4; /* Blauer Rahmen wenn ausgewählt */
 }
+
+.wallpaper-label {
+    background-color: rgba(30, 30, 30, 0.6);
+    border-radius: 4px;
+    color: white;
+    padding: 2px 6px;
+    font-weight: bold;
+}

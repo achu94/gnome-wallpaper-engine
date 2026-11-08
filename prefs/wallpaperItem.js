@@ -39,7 +39,21 @@ export function createWallpaperItem(dir, fileName) {
 
     image.add_css_class("rounded");
 
-    box.append(image);
+    const overlay = new Gtk.Overlay();
+    overlay.set_child(image);
+
+    const label = new Gtk.Label({
+        label: baseName,
+        halign: Gtk.Align.START,
+        valign: Gtk.Align.END,
+        margin_start: 5,
+        margin_bottom: 5,
+    });
+
+    label.add_css_class("wallpaper-label");
+
+    overlay.add_overlay(label);
+    box.append(overlay);
 
     return box;
 }

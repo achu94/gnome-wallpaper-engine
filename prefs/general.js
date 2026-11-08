@@ -2,16 +2,106 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 
-export function buildGeneralPage(settings, ext) {
+import { importWallpaper } from "./importFiles.js";
+import { getBackgroundsDir } from "../modules/utils.js";
+
+export function buildGeneralPage(settings, ext, window) {
     const page = new Adw.PreferencesPage({
         title: "General",
         icon_name: "preferences-system-symbolic",
     });
 
     page.add(buildBehaviorGroup(settings));
+    page.add(buildMediaPage(settings, window));
     page.add(buildSupportGroup(ext));
 
     return page;
+}
+
+function buildMediaPage(settings, window) {
+    const group = new Adw.PreferencesGroup({
+        title: "Media",
+        description: "Import videos or GIFs to use as wallpapers",
+    });
+
+    const bgDir = getBackgroundsDir();
+
+    const addButton = new Gtk.Button({
+        label: "Add",
+        valign: Gtk.Align.CENTER,
+        css_classes: ["suggested-action"],
+    });
+
+    const openFolderButton = new Gtk.Button({
+        label: "Open Folder",
+        valign: Gtk.Align.CENTER,
+    });
+
+    const spinner = new Gtk.Spinner({
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        visible: false,
+        margin_end: 12,
+    });
+
+    const row = new Adw.ActionRow({
+        title: "Import Media",
+        subtitle: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
+    });
+    row.add_suffix(spinner);
+    row.add_suffix(addButton);
+    row.add_suffix(openFolderButton);
+
+    openFolderButton.connect("clicked", () => {
+        const dir = Gio.File.new_for_path(bgDir);
+        Gio.AppInfo.launch_default_for_uri(dir.get_uri(), null);
+    });
+
+    addButton.connect("clicked", () => {
+        const chooser = new Gtk.FileChooserNative({
+            title: "Select Video or GIF",
+            action: Gtk.FileChooserAction.OPEN,
+            modal: true,
+            transient_for: window,
+        });
+
+        const filter = new Gtk.FileFilter();
+        filter.add_mime_type("video/mp4");
+        filter.add_mime_type("video/webm");
+        filter.add_mime_type("image/gif");
+        filter.add_mime_type("video/x-matroska");
+        filter.add_mime_type("video/quicktime");
+        filter.add_mime_type("video/x-msvideo");
+        chooser.add_filter(filter);
+
+        chooser.connect("response", async (res, response_id) => {
+            if (response_id === Gtk.ResponseType.ACCEPT) {
+                const sourceFile = chooser.get_file();
+
+                spinner.visible = true;
+                spinner.start();
+
+                try {
+                    const fileName = await importWallpaper(sourceFile, bgDir);
+
+                    spinner.stop();
+                    spinner.visible = false;
+
+                    settings.set_string("current-wallpaper", fileName);
+                } catch (e) {
+                    spinner.stop();
+                    spinner.visible = false;
+                    console.error(e);
+                }
+            }
+            chooser.destroy();
+        });
+
+        chooser.show();
+    });
+
+    group.add(row);
+    return group;
 }
 
 function buildBehaviorGroup(settings) {
