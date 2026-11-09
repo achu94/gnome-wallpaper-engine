@@ -15,6 +15,7 @@ export default class WallpaperExtension extends Extension {
     enable() {
         this._mpvExists = GLib.find_program_in_path("mpv");
         this._ffmpegExists = GLib.find_program_in_path('ffmpeg');
+        this._ytdlpExists = GLib.find_program_in_path("yt-dlp") || GLib.build_filenamev([GLib.get_home_dir(), ".local", "bin", "yt-dlp"]);
 
         let missing = [];
 
@@ -24,6 +25,10 @@ export default class WallpaperExtension extends Extension {
 
         if (!this._ffmpegExists) {
             missing.push("'ffmpeg'");
+        }
+
+        if (!this._ytdlpExists) {
+            missing.push("'yt-dlp'");
         }
 
         if (missing.length > 0) {

@@ -27,5 +27,13 @@
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
         </key>
+        <key name="youtube-quality" type="s">
+            <default>'HD'</default>
+            <summary>YouTube video quality (SD,HD,UHD)</summary>
+        </key>
+        <key name="youtube-stream" type="b">
+            <default>false</default>
+            <summary>Stream YouTube (false = download)</summary>
+        </key>
     </schema>
 </schemalist>

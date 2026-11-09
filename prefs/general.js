@@ -2,7 +2,7 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 
-import { importWallpaper } from "./importFiles.js";
+import { importWallpaper, downloadYoutubeVideo } from "./importFiles.js";
 import { getBackgroundsDir } from "../modules/utils.js";
 
 export function buildGeneralPage(settings, ext, window) {
@@ -18,6 +18,49 @@ export function buildGeneralPage(settings, ext, window) {
     return page;
 }
 
+function buildBehaviorGroup(settings) {
+    const group = new Adw.PreferencesGroup({
+        title: "Behavior",
+    });
+
+    group.add(createSwitchRow(
+        "Autostart",
+        "Start wallpaper on login",
+        settings,
+        "autostart"
+    ));
+
+    group.add(createSwitchRow(
+        "Tray Icon",
+        "Show icon in the top panel",
+        settings,
+        "show-indicator"
+    ));
+
+    group.add(createSwitchRow(
+        "Play Audio",
+        "Play audio when the wallpaper is active",
+        settings,
+        "play-audio"
+    ));
+
+    group.add(createSwitchRow(
+        "Pause on Fullscreen",
+        "Pause wallpaper when a fullscreen app is active",
+        settings,
+        "pause-on-fullscreen"
+    ));
+
+    group.add(createSwitchRow(
+        "Pause on Battery",
+        "Pause wallpaper when running on battery",
+        settings,
+        "pause-on-battery"
+    ));
+
+    return group;
+}
+
 function buildMediaPage(settings, window) {
     const group = new Adw.PreferencesGroup({
         title: "Media",
@@ -26,6 +69,7 @@ function buildMediaPage(settings, window) {
 
     const bgDir = getBackgroundsDir();
 
+    // Local Import Section
     const addButton = new Gtk.Button({
         label: "Add",
         valign: Gtk.Align.CENTER,
@@ -49,8 +93,8 @@ function buildMediaPage(settings, window) {
         subtitle: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
     });
     row.add_suffix(spinner);
-    row.add_suffix(addButton);
     row.add_suffix(openFolderButton);
+    row.add_suffix(addButton);
 
     openFolderButton.connect("clicked", () => {
         const dir = Gio.File.new_for_path(bgDir);
@@ -101,49 +145,85 @@ function buildMediaPage(settings, window) {
     });
 
     group.add(row);
-    return group;
-}
 
-function buildBehaviorGroup(settings) {
-    const group = new Adw.PreferencesGroup({
-        title: "Behavior",
+    // YouTube import section
+    const ytRow = new Adw.ActionRow({
+        title: "Import YouTube",
+        subtitle: "Paste YouTube (URL)",
+    });
+    // Spinner to show import in progress
+    const ytSpinner = new Gtk.Spinner({
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        visible: false,
+        margin_end: 12,
+    });
+    // Entry box to paste youtube link
+    const ytEntry = new Gtk.Entry({
+        placeholder_text: "https://youtu.be/...",
+        hexpand: true,
+        valign: Gtk.Align.CENTER,
     });
 
-    group.add(createSwitchRow(
-        "Autostart",
-        "Start wallpaper on login",
-        settings,
-        "autostart"
-    ));
+    // dropdown combonation box
+    const qualityCombo = new Gtk.ComboBoxText({
+        valign: Gtk.Align.CENTER,
+    });
+    qualityCombo.add_css_class("flat");
+    qualityCombo.append("UHD", "UHD");
+    qualityCombo.append("HD", "HD");
+    qualityCombo.append("SD", "SD");
+    settings.bind("youtube-quality", qualityCombo, "active-id", Gio.SettingsBindFlags.DEFAULT);
+
+    // Add btn
+    const ytApplyButton = new Gtk.Button({
+        label: "Add",
+        valign: Gtk.Align.CENTER,
+        css_classes: ["suggested-action"],
+    });
+
+    // Order of rendering the row.
+    ytRow.add_suffix(ytSpinner);
+    ytRow.add_suffix(ytEntry);
+    ytRow.add_suffix(qualityCombo);
+    ytRow.add_suffix(ytApplyButton);
+
+    ytApplyButton.connect("clicked", async () => {
+        const url = ytEntry.text.trim();
+        if (!url) return;
+
+        ytSpinner.visible = true;
+        ytSpinner.start();
+        ytApplyButton.sensitive = false;
+        ytEntry.sensitive = false;
+
+        let fileName;
+        try {
+            const quality = qualityCombo.get_active_id();
+            const stream = settings.get_boolean("youtube-stream");
+            fileName = await downloadYoutubeVideo(url, bgDir, quality, stream);
+        } catch (e) {
+            ytEntry.text = "URL Invalid";
+        } finally {
+            ytSpinner.stop();
+            ytSpinner.visible = false;
+            ytApplyButton.sensitive = true;
+            ytEntry.sensitive = true;
+            if (fileName) {
+                ytEntry.text = '';
+                settings.set_string("current-wallpaper", fileName);
+            }
+        }
+    });
+
+    group.add(ytRow);
 
     group.add(createSwitchRow(
-        "Tray Icon",
-        "Show icon in the top panel",
+        "Stream YouTube",
+        "Enable to create a streaming link, instead of downloading the mp4",
         settings,
-        "show-indicator"
+        "youtube-stream"
     ));
-
-    group.add(createSwitchRow(
-        "Play Audio",
-        "Play audio when the wallpaper is active",
-        settings,
-        "play-audio"
-    ));
-
-    group.add(createSwitchRow(
-        "Pause on Fullscreen",
-        "Pause wallpaper when a fullscreen app is active",
-        settings,
-        "pause-on-fullscreen"
-    ));
-
-    group.add(createSwitchRow(
-        "Pause on Battery",
-        "Pause wallpaper when running on battery",
-        settings,
-        "pause-on-battery"
-    ));
-
     return group;
 }
 
