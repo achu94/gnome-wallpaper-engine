@@ -14,4 +14,30 @@
     color: white;
     padding: 2px 6px;
     font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.wallpaper-tag {
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 4px;
+    color: #eee;
+    padding: 1px 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.playing-tag {
+    background-color: rgba(237, 51, 59, 0.9);
+    border-radius: 4px;
+    color: white;
+    padding: 2px 6px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
 }

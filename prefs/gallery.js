@@ -53,13 +53,15 @@ export function buildGalleryPage(ext, window, settings) {
             while ((info = enumerator.next_file(null)) !== null) {
                 const fileName = info.get_name();
 
+                const currentWallpaper = settings.get_string("current-wallpaper");
                 if (
                     supported.some((ext) =>
                         fileName.toLowerCase().endsWith(ext),
                     )
                 ) {
                     await ensureThumbnail(bgDir, fileName);
-                    flowBox.append(createWallpaperItem(bgDir, fileName));
+                    const isPlaying = currentWallpaper === fileName;
+                    flowBox.append(createWallpaperItem(bgDir, fileName, isPlaying));
                 }
             }
         } catch (e) {

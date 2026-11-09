@@ -85,7 +85,7 @@ export async function downloadYoutubeVideo(url, bgDir, quality = "SD", stream = 
         "--output", outputTemplate,
         "--format", formatSpec,
         "--merge-output-format", "mp4",
-        "--no-playlist",
+        "--embed-chapters",
         url
     ];
 
