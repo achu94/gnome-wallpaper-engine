@@ -23,7 +23,7 @@ function getVideoMetadata(filePath) {
             if (!isNaN(durationSeconds)) {
                 const hours = Math.floor(durationSeconds / 3600);
                 const minutes = Math.ceil((durationSeconds % 3600) / 60);
-                
+
                 if (hours > 0) {
                     metadata.duration = `${hours}:${minutes.toString().padStart(2, '0')}`;
                 } else {
@@ -37,7 +37,7 @@ function getVideoMetadata(filePath) {
     return metadata;
 }
 
-export function createWallpaperItem(dir, fileName, isPlaying = false) {
+export function createWallpaperItem(dir, fileName, isInstalled = false) {
     const box = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,
         halign: Gtk.Align.CENTER,
@@ -55,10 +55,10 @@ export function createWallpaperItem(dir, fileName, isPlaying = false) {
     const info = file.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null);
     const sizeInBytes = info.get_size();
     const sizeInGB = (sizeInBytes / (1024 * 1024 * 1024)).toFixed(2);
-    const sizeStr = sizeInBytes > 1024 * 1024 * 1024 
-        ? `${sizeInGB} GB` 
+    const sizeStr = sizeInBytes > 1024 * 1024 * 1024
+        ? `${sizeInGB} GB`
         : `${Math.round(sizeInBytes / (1024 * 1024))} MB`;
-    
+
     const extension = fileName.split('.').pop().toUpperCase();
     const metadata = getVideoMetadata(`${dir}/${fileName}`);
     const lastDot = fileName.lastIndexOf(".");
@@ -133,16 +133,16 @@ export function createWallpaperItem(dir, fileName, isPlaying = false) {
     overlay.add_overlay(label);
     overlay.add_overlay(tagsBox);
 
-    if (isPlaying) {
-        const playingLabel = new Gtk.Label({
-            label: "PLAYING",
+    if (isInstalled) {
+        const installedLabel = new Gtk.Label({
+            label: "INSTALLED",
             halign: Gtk.Align.START,
             valign: Gtk.Align.START,
             margin_start: 5,
             margin_top: 5,
         });
-        playingLabel.add_css_class("playing-tag");
-        overlay.add_overlay(playingLabel);
+        installedLabel.add_css_class("installed-tag");
+        overlay.add_overlay(installedLabel);
     }
 
     box.append(overlay);
