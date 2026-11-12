@@ -7,6 +7,7 @@ import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
+import { mediaFormat, mpvSocket } from "./ytWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
@@ -93,7 +94,9 @@ export class Wallpaper {
 
         const sessionId = GLib.uuid_string_random();
         this._sessionId = sessionId;
+        const socketPath = `/tmp/mpvsocket-${sessionId}`;
         const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
+        const streamFormat = mediaFormat(filename, videoPath, true);
         const argv = [
             mpvPath,
             "--vo=gpu",
@@ -101,7 +104,6 @@ export class Wallpaper {
             "--hwdec=auto",
             "--no-border",
             "--loop-file=inf",
-            "--no-audio",
             "--force-window=immediate",
             `--title=${windowTitle}`,
             `--geometry=${sourceMonitor.width}x${sourceMonitor.height}+0+0`,
@@ -116,6 +118,9 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--no-terminal",
+            `--input-ipc-server=${socketPath}`,
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
+            ...streamFormat,
             videoPath,
         ];
 
@@ -176,6 +181,10 @@ export class Wallpaper {
             Main.notify("Gnome Live Wallpaper", error.message);
             this.stop();
         }
+    }
+
+    _sendCommand(commandArray) {
+        return mpvSocket(this._sessionId, commandArray);
     }
 
     _onWindowMapped(windowActor) {

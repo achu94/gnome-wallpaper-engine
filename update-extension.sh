@@ -16,4 +16,4 @@ gnome-extensions install --force "$ZIP_FILE"
 echo "🚪 Logging out..."
 
 # GNOME Logout (funktioniert in den meisten Fällen)
-gnome-session-quit --logout --no-prompt
+# gnome-session-quit --logout --no-prompt

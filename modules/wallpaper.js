@@ -36,7 +36,6 @@ export class Wallpaper {
             "mpv",
             "--no-border",
             "--loop=inf",
-            "--no-audio",
             "--force-window=yes",
             "--ontop=no",
             "--keep-open=yes",
@@ -51,6 +50,8 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--hwdec=auto",
+            `--input-ipc-server=${socketPath}`,
+          ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
             videoPath,
         ];
 
@@ -81,6 +82,44 @@ export class Wallpaper {
             );
         } catch (error) {
             logError(error);
+        }
+    }
+
+    // No idea if this will work it will need be tested on X11.
+    _sendCommand(commandArray) {
+        if (!this._sessionId) {
+            console.log("[WallpaperExtension] _sendCommand: No sessionId");
+            return null;
+      }
+        const socketPath = `/tmp/mpvsocket-${this._sessionId}`;
+        try {
+            const address = Gio.UnixSocketAddress.new(socketPath);
+            const client = new Gio.SocketClient();
+            const connection = client.connect(address, null);
+            if (!connection) return null;
+            const outputStream = connection.get_output_stream();
+            const payload = JSON.stringify({ command: commandArray }) + '\n';
+            const bytes = new GLib.Bytes(payload);
+            outputStream.write_bytes(bytes, null);
+            // Future proofing section so we can return JSON data
+            const inputStream = connection.get_input_stream();
+            const dataInputStream = new Gio.DataInputStream({
+                base_stream: inputStream,
+            });
+            const [line] = dataInputStream.read_line(null);
+            let result = null;
+            if (line) {
+                const response = JSON.parse(new TextDecoder().decode(line));
+              //Debug output ...
+              //console.log(`[MpvExtension] ${socketPath} response: ${JSON.stringify(response)}`);
+                result = response.data;
+            }
+            connection.close(null);
+            return result;
+
+        } catch (error) {
+            console.error(`[MpvExtension] Failed to send IPC command to ${socketPath}: ${error.message}`);
+            return null;
         }
     }
 

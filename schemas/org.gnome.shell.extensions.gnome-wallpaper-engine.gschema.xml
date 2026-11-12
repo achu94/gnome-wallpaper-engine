@@ -10,6 +10,10 @@
             <default>true</default>
             <summary>Show or hide the tray icon</summary>
         </key>
+        <key name="play-audio" type="b">
+            <default>true</default>
+            <summary>Play audio when the wallpaper is active</summary>
+        </key>
         <key name="pause-on-fullscreen" type="b">
             <default>true</default>
             <summary>Pause when a fullscreen application is active</summary>
@@ -22,6 +26,18 @@
         <key name="current-wallpaper" type="s">
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
+        </key>
+        <key name="youtube-quality" type="s">
+            <default>'HD'</default>
+            <summary>YouTube video quality (SD,HD,UHD)</summary>
+        </key>
+        <key name="youtube-codex" type="s">
+            <default>'h264'</default>
+            <summary>YouTube video codec (av1,vp9,h264)</summary>
+        </key>
+        <key name="youtube-stream" type="b">
+            <default>false</default>
+            <summary>Stream YouTube (false = download)</summary>
         </key>
     </schema>
 </schemalist>
