@@ -9,13 +9,14 @@ import { Wallpaper as Gnome50Wallpaper } from "./modules/wallpaper50.js";
 import { AutoPause } from "./modules/autoPause.js";
 import { WindowFilter } from "./modules/windowFilter.js";
 
-import { debug } from "./modules/utils.js";
+import { debug , loadPath } from "./modules/utils.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
+        loadPath();
         this._mpvExists = GLib.find_program_in_path("mpv");
         this._ffmpegExists = GLib.find_program_in_path('ffmpeg');
-        this._ytdlpExists = GLib.find_program_in_path("yt-dlp") || GLib.build_filenamev([GLib.get_home_dir(), ".local", "bin", "yt-dlp"]);
+        this._ytdlpExists = GLib.find_program_in_path("yt-dlp");
 
         let missing = [];
 

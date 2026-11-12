@@ -31,6 +31,10 @@
             <default>'HD'</default>
             <summary>YouTube video quality (SD,HD,UHD)</summary>
         </key>
+        <key name="youtube-codex" type="s">
+            <default>'h264'</default>
+            <summary>YouTube video codec (av1,vp9,h264)</summary>
+        </key>
         <key name="youtube-stream" type="b">
             <default>false</default>
             <summary>Stream YouTube (false = download)</summary>

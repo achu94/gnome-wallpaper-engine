@@ -1,6 +1,16 @@
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
 
+export function loadPath() {
+    // We need this as different distros and install mechanism drop mpv,ffmeg and yt-dlp
+    // in different places, sometimes they are only included in the userspace.
+    const currentPath = GLib.getenv("PATH") || "";
+    const homeBin = GLib.build_filenamev([GLib.get_home_dir(), ".local", "bin"]);
+    if (!currentPath.includes(homeBin)) {
+        GLib.setenv("PATH", `${homeBin}:${currentPath}`, true);
+    }
+}
+
 export function debug(msg) {
     try {
         if (msg === null) {

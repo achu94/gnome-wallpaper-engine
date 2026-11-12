@@ -7,6 +7,7 @@ import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
+import { mediaFormat, mpvSocket } from "./ytWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
@@ -95,6 +96,7 @@ export class Wallpaper {
         this._sessionId = sessionId;
         const socketPath = `/tmp/mpvsocket-${sessionId}`;
         const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
+        const streamFormat = mediaFormat(filename, videoPath, true);
         const argv = [
             mpvPath,
             "--vo=gpu",
@@ -117,7 +119,8 @@ export class Wallpaper {
             "--cursor-autohide=no",
             "--no-terminal",
             `--input-ipc-server=${socketPath}`,
-          ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
+            ...streamFormat,
             videoPath,
         ];
 
@@ -181,40 +184,7 @@ export class Wallpaper {
     }
 
     _sendCommand(commandArray) {
-        if (!this._sessionId) {
-            console.log("[WallpaperExtension] _sendCommand: No sessionId");
-            return null;
-      }
-        const socketPath = `/tmp/mpvsocket-${this._sessionId}`;
-        try {
-            const address = Gio.UnixSocketAddress.new(socketPath);
-            const client = new Gio.SocketClient();
-            const connection = client.connect(address, null);
-            if (!connection) return null;
-            const outputStream = connection.get_output_stream();
-            const payload = JSON.stringify({ command: commandArray }) + '\n';
-            const bytes = new GLib.Bytes(payload);
-            outputStream.write_bytes(bytes, null);
-            // Future proofing section so we can return JSON data
-            const inputStream = connection.get_input_stream();
-            const dataInputStream = new Gio.DataInputStream({
-                base_stream: inputStream,
-            });
-            const [line] = dataInputStream.read_line(null);
-            let result = null;
-            if (line) {
-                const response = JSON.parse(new TextDecoder().decode(line));
-              //Debug output ...
-              //console.log(`[MpvExtension] ${socketPath} response: ${JSON.stringify(response)}`);
-                result = response.data;
-            }
-            connection.close(null);
-            return result;
-
-        } catch (error) {
-            console.error(`[MpvExtension] Failed to send IPC command to ${socketPath}: ${error.message}`);
-            return null;
-        }
+        return mpvSocket(this._sessionId, commandArray);
     }
 
     _onWindowMapped(windowActor) {

@@ -48,7 +48,7 @@ export function buildGalleryPage(ext, window, settings) {
             );
 
             let info;
-            const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
+            const supported = [".m3u",".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
 
             while ((info = enumerator.next_file(null)) !== null) {
                 const fileName = info.get_name();

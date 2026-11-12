@@ -2,7 +2,6 @@ import GObject from "gi://GObject";
 import St from "gi://St";
 import Gio from "gi://Gio";
 import Clutter from "gi://Clutter";
-import Pango from "gi://Pango";
 
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -61,13 +60,14 @@ export const Indicator = GObject.registerClass(
                     index = (index - 1 + list.length) % list.length;
                 }
             }
-            this._extension._settings.set_string("current-wallpaper", list[index]);
+          this._extension._settings.set_string("current-wallpaper", list[index]);
+          this._updateControls();
         }
 
         _getWallpaperList() {
             const bgDir = getBackgroundsDir();
             const directory = Gio.File.new_for_path(bgDir);
-            const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
+            const supported = [".m3u",".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
             const files = [];
 
             try {

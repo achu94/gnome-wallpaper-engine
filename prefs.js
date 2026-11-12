@@ -4,9 +4,11 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 
 import { buildGalleryPage } from "./prefs/gallery.js";
 import { buildGeneralPage } from "./prefs/general.js";
+import { debug , loadPath } from "./modules/utils.js";
 
 export default class WallpaperPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
+        loadPath();
         const settings = this.getSettings(
             "org.gnome.shell.extensions.gnome-wallpaper-engine"
         );

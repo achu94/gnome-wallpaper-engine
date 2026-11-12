@@ -2,8 +2,9 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 
-import { importWallpaper, downloadYoutubeVideo } from "./importFiles.js";
+import { importWallpaper , ensureThumbnail } from "./importFiles.js";
 import { getBackgroundsDir } from "../modules/utils.js";
+import { processMediaAction } from "../modules/ytWallpaper.js";
 
 export function buildGeneralPage(settings, ext, window) {
     const page = new Adw.PreferencesPage({
@@ -90,7 +91,7 @@ function buildMediaPage(settings, window) {
 
     const row = new Adw.ActionRow({
         title: "Import Media",
-        subtitle: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
+        subtitle: "Supported formats: M3U, MP4, WebM, MKV, MOV, AVI, GIF",
     });
     row.add_suffix(spinner);
     row.add_suffix(openFolderButton);
@@ -109,7 +110,8 @@ function buildMediaPage(settings, window) {
             transient_for: window,
         });
 
-        const filter = new Gtk.FileFilter();
+      const filter = new Gtk.FileFilter();
+        filter.add_mime_type("video/x-mpegurl");
         filter.add_mime_type("video/mp4");
         filter.add_mime_type("video/webm");
         filter.add_mime_type("image/gif");
@@ -149,7 +151,7 @@ function buildMediaPage(settings, window) {
     // YouTube import section
     const ytRow = new Adw.ActionRow({
         title: "Import YouTube",
-        subtitle: "Paste YouTube (URL)",
+        subtitle: "Paste YouTube URL:",
     });
     // Spinner to show import in progress
     const ytSpinner = new Gtk.Spinner({
@@ -170,10 +172,21 @@ function buildMediaPage(settings, window) {
         valign: Gtk.Align.CENTER,
     });
     qualityCombo.add_css_class("flat");
-    qualityCombo.append("UHD", "UHD");
-    qualityCombo.append("HD", "HD");
-    qualityCombo.append("SD", "SD");
+    qualityCombo.append("2160", "UHD");
+    qualityCombo.append("1440", "QHD");
+    qualityCombo.append("1080", "HD");
+    qualityCombo.append("720", "SD");
     settings.bind("youtube-quality", qualityCombo, "active-id", Gio.SettingsBindFlags.DEFAULT);
+
+    // codex combo box
+    const codexCombo = new Gtk.ComboBoxText({
+        valign: Gtk.Align.CENTER,
+    });
+    codexCombo.add_css_class("flat");
+    codexCombo.append("av01", "AV1");
+    codexCombo.append("vp09", "VP9");
+    codexCombo.append("avc1", "h264");
+    settings.bind("youtube-codex", codexCombo, "active-id", Gio.SettingsBindFlags.DEFAULT);
 
     // Add btn
     const ytApplyButton = new Gtk.Button({
@@ -185,6 +198,7 @@ function buildMediaPage(settings, window) {
     // Order of rendering the row.
     ytRow.add_suffix(ytSpinner);
     ytRow.add_suffix(ytEntry);
+    ytRow.add_suffix(codexCombo);
     ytRow.add_suffix(qualityCombo);
     ytRow.add_suffix(ytApplyButton);
 
@@ -200,8 +214,10 @@ function buildMediaPage(settings, window) {
         let fileName;
         try {
             const quality = qualityCombo.get_active_id();
+            const codex = codexCombo.get_active_id();
             const stream = settings.get_boolean("youtube-stream");
-            fileName = await downloadYoutubeVideo(url, bgDir, quality, stream);
+            fileName = await processMediaAction(url, bgDir, quality, codex, stream);
+            await ensureThumbnail(bgDir, fileName);
         } catch (e) {
             ytEntry.text = "URL Invalid";
         } finally {
@@ -218,9 +234,23 @@ function buildMediaPage(settings, window) {
 
     group.add(ytRow);
 
+    const ytNoteLabel = new Gtk.Label({
+      label: "Use AV1 for UHD on modern GPU, lowers bandwidth needed. If AV1 is not accelerating, try VP9. Otherswise use h264 for wider GPU support, normally limits at HD.",
+        hexpand: true,
+        halign: Gtk.Align.FILL,
+        xalign: 0.0,
+        wrap: true,
+        margin_start: 12,
+        margin_end: 12,
+        margin_top: 6,
+        margin_bottom: 6,
+    });
+    ytNoteLabel.add_css_class("dim-label");
+    group.add(ytNoteLabel);
+
     group.add(createSwitchRow(
         "Stream YouTube",
-        "Enable to create a streaming link, instead of downloading the mp4",
+        "Enable to import a M3U streaming link into the Gallery",
         settings,
         "youtube-stream"
     ));
