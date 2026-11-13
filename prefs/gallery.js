@@ -13,15 +13,58 @@ export function buildGalleryPage(ext, window, settings) {
     });
 
     const group = new Adw.PreferencesGroup({
-        title: "Wallpaper Selection",
-        description: "Select the wallpaper you wish to play",
-    });
+       // title: "Wallpaper Selection",  // Much neater with these hidden.
+       // description: "Select the wallpaper you wish to play",
+       });
 
-    const openFolderButton = new Gtk.Button({
-        icon_name: "folder-symbolic",
+    const folderButton = new Gtk.Button({
+        icon_name: "folder-open-symbolic",
         valign: Gtk.Align.CENTER,
         css_classes: ["pill"],
     });
+
+    const directoryRow = new Adw.ActionRow({
+        title: "Wallpaper Selection",
+        subtitle: getBackgroundsDir(settings),
+        activatable_widget: folderButton,
+    });
+
+    folderButton.connect("clicked", () => {
+        const dialog = new Gtk.FileChooserNative({
+            title: "Select Backgrounds Directory",
+            action: Gtk.FileChooserAction.SELECT_FOLDER,
+            accept_label: "Select",
+            cancel_label: "Cancel",
+            transient_for: window,
+            modal: true,
+        });
+
+        const currentDir = getBackgroundsDir(settings);
+        const currentFolder = Gio.File.new_for_path(currentDir);
+        if (currentFolder.query_exists(null)) {
+            try {
+                dialog.set_current_folder(currentFolder);
+            } catch (e) {
+                console.error("Failed to set current folder on FileChooser:", e);
+            }
+        }
+
+        dialog.connect("response", (dialog, response_id) => {
+            if (response_id === Gtk.ResponseType.ACCEPT) {
+                const file = dialog.get_file();
+                const path = file.get_path();
+                settings.set_string("backgrounds-directory", path);
+                directoryRow.set_subtitle(path);
+                refreshGallery();
+            }
+            dialog.destroy();
+        });
+
+        dialog.show();
+    });
+
+    directoryRow.add_suffix(folderButton);
+    group.add(directoryRow);
 
     const flowBox = new Gtk.FlowBox({
         valign: Gtk.Align.START,
@@ -30,14 +73,23 @@ export function buildGalleryPage(ext, window, settings) {
         column_spacing: 4,
     });
 
-    const bgDir = getBackgroundsDir();
-    const directory = ensureBackgroundsDir();
-
     const refreshGallery = async () => {
         let child = flowBox.get_first_child();
         while (child) {
             flowBox.remove(child);
             child = flowBox.get_first_child();
+        }
+
+        const bgDir = getBackgroundsDir(settings);
+        const directory = Gio.File.new_for_path(bgDir);
+
+        if (!directory.query_exists(null)) {
+            try {
+                directory.make_directory_with_parents(null);
+            } catch (e) {
+                console.error(e);
+                return;
+            }
         }
 
         try {

@@ -27,6 +27,10 @@
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
         </key>
+        <key name="backgrounds-directory" type="s">
+            <default>''</default>
+            <summary>Path to the directory containing wallpapers</summary>
+        </key>
         <key name="youtube-quality" type="s">
             <default>'HD'</default>
             <summary>YouTube video quality (SD,HD,UHD)</summary>
@@ -38,6 +42,10 @@
         <key name="youtube-stream" type="b">
             <default>false</default>
             <summary>Stream YouTube (false = download)</summary>
+        </key>
+        <key name="thumb-time" type="s">
+            <default>'00:00:10'</default>
+            <summary>Timestamp for static background image</summary>
         </key>
     </schema>
 </schemalist>

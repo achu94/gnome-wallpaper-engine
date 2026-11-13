@@ -88,7 +88,7 @@ export function mpvSocket(sessionId, commandArray) {
     }
 }
 
-export function extractImage(videoPath, thumbPath) {
+export function extractImage(videoPath, thumbPath, thumbTime = "00:00:10") {
     let target = videoPath;
 
     const [success, contents] = GLib.file_get_contents(videoPath);
@@ -109,7 +109,7 @@ export function extractImage(videoPath, thumbPath) {
 
     return [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-ss", "00:00:10", "-i", target,
+        "-ss", thumbTime, "-i", target,
         "-frames:v", "1",
         thumbPath
     ];

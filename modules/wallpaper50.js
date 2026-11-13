@@ -67,7 +67,7 @@ export class Wallpaper {
         const filename = this._ext._settings.get_string("current-wallpaper");
         if (!filename) return;
 
-        const bgDir = getBackgroundsDir();
+        const bgDir = getBackgroundsDir(this._ext._settings);
         const baseName = filename.substring(0, filename.lastIndexOf("."));
         const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
         this._staticWallpaper.set(thumbPath);
@@ -95,8 +95,8 @@ export class Wallpaper {
         const sessionId = GLib.uuid_string_random();
         this._sessionId = sessionId;
         const socketPath = `/tmp/mpvsocket-${sessionId}`;
-        const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
         const streamFormat = mediaFormat(filename, videoPath, true);
+        const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
         const argv = [
             mpvPath,
             "--vo=gpu",

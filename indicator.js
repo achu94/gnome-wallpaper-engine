@@ -65,7 +65,7 @@ export const Indicator = GObject.registerClass(
         }
 
         _getWallpaperList() {
-            const bgDir = getBackgroundsDir();
+            const bgDir = getBackgroundsDir(this._extension._settings);
             const directory = Gio.File.new_for_path(bgDir);
             const supported = [".m3u",".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
             const files = [];

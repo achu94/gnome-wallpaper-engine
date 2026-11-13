@@ -68,7 +68,7 @@ function buildMediaPage(settings, window) {
         description: "Import videos or GIFs to use as wallpapers",
     });
 
-    const bgDir = getBackgroundsDir();
+    // const bgDir = getBackgroundsDir(settings);
 
     // Local Import Section
     const addButton = new Gtk.Button({
@@ -98,6 +98,7 @@ function buildMediaPage(settings, window) {
     row.add_suffix(addButton);
 
     openFolderButton.connect("clicked", () => {
+        const bgDir = getBackgroundsDir(settings);
         const dir = Gio.File.new_for_path(bgDir);
         Gio.AppInfo.launch_default_for_uri(dir.get_uri(), null);
     });
@@ -128,7 +129,8 @@ function buildMediaPage(settings, window) {
                 spinner.start();
 
                 try {
-                    const fileName = await importWallpaper(sourceFile, bgDir);
+                  const bgDir = getBackgroundsDir(settings);
+                  const fileName = await importWallpaper(sourceFile, bgDir, settings);
 
                     spinner.stop();
                     spinner.visible = false;
@@ -216,8 +218,9 @@ function buildMediaPage(settings, window) {
             const quality = qualityCombo.get_active_id();
             const codex = codexCombo.get_active_id();
             const stream = settings.get_boolean("youtube-stream");
+            const bgDir = getBackgroundsDir(settings);
             fileName = await processMediaAction(url, bgDir, quality, codex, stream);
-            await ensureThumbnail(bgDir, fileName);
+            await ensureThumbnail(bgDir, fileName, settings);
         } catch (e) {
             ytEntry.text = "URL Invalid";
         } finally {
@@ -234,6 +237,47 @@ function buildMediaPage(settings, window) {
 
     group.add(ytRow);
 
+    group.add(createSwitchRow(
+        "Stream YouTube",
+        "Enable to import a M3U streaming link into the Gallery",
+        settings,
+        "youtube-stream"
+    ));
+
+    const thumbRow = new Adw.ActionRow({
+        title: "Static Image",
+        subtitle: "Select a timestamp for image extraction, to set as a static background image.",
+    });
+
+    const timeAdjustment = new Gtk.Adjustment({
+        lower: 0, upper: 60, step_increment: 1,page_increment: 10,
+    });
+
+    const timeSpin = new Gtk.SpinButton({
+        adjustment: timeAdjustment,
+        valign: Gtk.Align.CENTER,
+        numeric: true,
+    });
+
+    // Convert setting string HH:MM:SS to seconds for the spin button
+    const currentTime = settings.get_string("thumb-time");
+    const [h, m, s] = currentTime.split(":").map(Number);
+    timeSpin.set_value(h * 3600 + m * 60 + s);
+
+    timeSpin.connect("value-changed", () => {
+        const totalSeconds = timeSpin.get_value_as_int();
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const timeStr = [hours, minutes, seconds]
+            .map(v => v.toString().padStart(2, "0"))
+            .join(":");
+        settings.set_string("thumb-time", timeStr);
+    });
+
+    thumbRow.add_suffix(timeSpin);
+    group.add(thumbRow);
+
     const ytNoteLabel = new Gtk.Label({
       label: "Use AV1 for UHD on modern GPU, lowers bandwidth needed. If AV1 is not accelerating, try VP9. Otherswise use h264 for wider GPU support, normally limits at HD.",
         hexpand: true,
@@ -248,12 +292,6 @@ function buildMediaPage(settings, window) {
     ytNoteLabel.add_css_class("dim-label");
     group.add(ytNoteLabel);
 
-    group.add(createSwitchRow(
-        "Stream YouTube",
-        "Enable to import a M3U streaming link into the Gallery",
-        settings,
-        "youtube-stream"
-    ));
     return group;
 }
 
