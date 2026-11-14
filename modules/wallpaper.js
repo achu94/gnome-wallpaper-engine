@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
-import { getBackgroundsDir } from "./utils.js";
+import { getBackgroundsDir , mpvSocket } from "./utils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {

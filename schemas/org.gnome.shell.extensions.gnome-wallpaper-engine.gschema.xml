@@ -10,6 +10,10 @@
             <default>true</default>
             <summary>Show or hide the tray icon</summary>
         </key>
+        <key name="show-video" type="b">
+            <default>true</default>
+            <summary>Show video for the wallpaper</summary>
+        </key>
         <key name="play-audio" type="b">
             <default>true</default>
             <summary>Play audio when the wallpaper is active</summary>

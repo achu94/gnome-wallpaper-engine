@@ -2,6 +2,7 @@ import GObject from "gi://GObject";
 import St from "gi://St";
 import Gio from "gi://Gio";
 import Clutter from "gi://Clutter";
+import GLib from "gi://GLib";
 
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -21,16 +22,29 @@ export const Indicator = GObject.registerClass(
             );
 
             this._buildMenu();
+
+            this._settingsSignalId = this._extension._settings.connect(
+                "changed::current-wallpaper",
+                () => {
+                    // Use idle_add to ensure the extension has started the wallpaper process
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                        this._updateControls();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+            );
         }
 
         _isWallpaperRunning() {
             const wp = this._extension._wallpaper;
             if (!wp) return false;
-            return !!(wp._process || wp._sessionId);
+            return !!(wp._process || wp._sessionId || wp._mpvProcess);
         }
 
         _updateControls(forceRunning = false) {
             const running = forceRunning || this._isWallpaperRunning();
+            const showVideo = this._extension._settings.get_boolean("show-video");
+            const playAudio = this._extension._settings.get_boolean("play-audio");
 
             // Video Controls
             [this._playPauseButton, this._prevVideoButton, this._nextVideoButton].forEach((btn) => {
@@ -44,6 +58,33 @@ export const Indicator = GObject.registerClass(
 
             // Start/Stop Button Icon
             this._startStopButton.child = running ? this._stopIcon : this._startIcon;
+
+            // Video Toggles
+            // Video/Audio Toggles
+            if (this._videoButton) {
+                this._videoButton.set_child(new St.Icon({
+                    icon_name: "video-display-symbolic",
+                    style_class: "popup-menu-icon",
+                }));
+
+                if (showVideo) {
+                    this._videoButton.remove_style_class_name("disabled");
+                } else {
+                    this._videoButton.add_style_class_name("disabled");
+                }
+            }
+            if (this._audioButton) {
+                this._audioButton.set_child(new St.Icon({
+                    icon_name: "audio-speakers-symbolic",
+                    style_class: "popup-menu-icon",
+                }));
+
+                if (playAudio) {
+                    this._audioButton.remove_style_class_name("disabled");
+                } else {
+                    this._audioButton.add_style_class_name("disabled");
+                }
+            }
         }
 
         _scrollWallpaper(direction) {
@@ -165,9 +206,51 @@ export const Indicator = GObject.registerClass(
                 this._scrollWallpaper("next");
             });
 
+            // Video Toggle Button
+            this._videoButton = new St.Button({
+                can_focus: true,
+                style_class: "menubutton",
+            });
+            this._videoButton.child = new St.Icon({
+                icon_name: "video-display-symbolic",
+                style_class: "popup-menu-icon",
+            });
+            this._videoButton.connect("clicked", () => {
+                const currentVideo = this._extension._settings.get_boolean("show-video");
+                const currentAudio = this._extension._settings.get_boolean("play-audio");
+                if (currentVideo && !currentAudio) {
+                    // Cannot disable both, so toggle audio on if we disable video
+                    this._extension._settings.set_boolean("play-audio", true);
+                }
+                this._extension._settings.set_boolean("show-video", !currentVideo);
+                this._updateControls();
+            });
+
+            // Audio Toggle Button
+            this._audioButton = new St.Button({
+                can_focus: true,
+                style_class: "menubutton",
+            });
+            this._audioButton.child = new St.Icon({
+                icon_name: "audio-speakers-symbolic",
+                style_class: "popup-menu-icon",
+            });
+            this._audioButton.connect("clicked", () => {
+                const currentVideo = this._extension._settings.get_boolean("show-video");
+                const currentAudio = this._extension._settings.get_boolean("play-audio");
+                if (currentAudio && !currentVideo) {
+                    // Cannot disable both, so toggle video on if we disable audio
+                    this._extension._settings.set_boolean("show-video", true);
+                }
+                this._extension._settings.set_boolean("play-audio", !currentAudio);
+                this._updateControls();
+            });
+
             controlsBox.add_child(prevButton);
             controlsBox.add_child(this._startStopButton);
             controlsBox.add_child(nextButton);
+            controlsBox.add_child(this._videoButton);
+            controlsBox.add_child(this._audioButton);
             controlsItem.add_child(controlsBox);
             this.menu.addMenuItem(controlsItem);
 
@@ -266,11 +349,15 @@ export const Indicator = GObject.registerClass(
              //});
              //this.menu.addMenuItem(selectChapters);
 
-          // By setting to true we force it to be running os init.
-            this._updateControls(true);
+          // By setting to the autostart setting value we determine if it should be running on init.
+            this._updateControls(this._extension._settings.get_boolean("autostart"));
         }
 
         destroy() {
+            if (this._settingsSignalId) {
+                this._extension._settings.disconnect(this._settingsSignalId);
+                this._settingsSignalId = null;
+            }
             this._extension = null;
             super.destroy();
         }

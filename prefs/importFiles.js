@@ -1,6 +1,6 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import { extractImage } from "../modules/ytWallpaper.js";
+import { extractImage } from "../modules/mediaWallpaper.js";
 
 Gio._promisify(Gio.File.prototype, "copy_async", "copy_finish");
 Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish");

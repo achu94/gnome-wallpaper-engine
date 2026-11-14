@@ -43,7 +43,7 @@ export function getBackgroundsDir(settings = null) {
     try {
         const s = settings || new Gio.Settings({ schema_id: 'org.gnome.shell.extensions.gnome-wallpaper-engine' });
         const customDir = s.get_string("backgrounds-directory");
-        
+
         if (customDir && customDir !== '') {
             return customDir;
         }
@@ -68,4 +68,26 @@ export function ensureBackgroundsDir() {
     }
 
     return directory;
+}
+
+export function mpvSocket(sessionId, commandArray) {
+    if (!sessionId) return null;
+    const socketPath = `/tmp/mpvsocket-${sessionId}`;
+    try {
+        const address = Gio.UnixSocketAddress.new(socketPath);
+        const client = new Gio.SocketClient();
+        const connection = client.connect(address, null);
+        if (!connection) return null;
+
+        connection.get_output_stream().write_bytes(new GLib.Bytes(JSON.stringify({ command: commandArray }) + '\n'), null);
+        const dataInputStream = new Gio.DataInputStream({ base_stream: connection.get_input_stream() });
+        const [line] = dataInputStream.read_line(null);
+        let result = line ? JSON.parse(new TextDecoder().decode(line)).data : null;
+
+        connection.close(null);
+        return result;
+    } catch (error) {
+        console.error(`[Wallpaper] Failed to send IPC command to ${socketPath}: ${error.message}`);
+        return null;
+    }
 }

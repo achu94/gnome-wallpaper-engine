@@ -68,6 +68,11 @@ export default class WallpaperExtension extends Extension {
             () => this._wallpaper.start()
         );
 
+        this._videoSettingSignalId = this._settings.connect(
+            "changed::show-video",
+            () => this._wallpaper.start()
+        );
+
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
                 this._wallpaper.start();
@@ -110,6 +115,11 @@ export default class WallpaperExtension extends Extension {
         if (this._audioSettingSignalId) {
             this._settings.disconnect(this._audioSettingSignalId);
             this._audioSettingSignalId = null;
+        }
+
+        if (this._videoSettingSignalId) {
+            this._settings.disconnect(this._videoSettingSignalId);
+            this._videoSettingSignalId = null;
         }
 
         if (this._wallpaper) {

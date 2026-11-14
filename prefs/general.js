@@ -4,7 +4,7 @@ import Gtk from "gi://Gtk";
 
 import { importWallpaper , ensureThumbnail } from "./importFiles.js";
 import { getBackgroundsDir } from "../modules/utils.js";
-import { processMediaAction } from "../modules/ytWallpaper.js";
+import { processMediaAction } from "../modules/mediaWallpaper.js";
 
 export function buildGeneralPage(settings, ext, window) {
     const page = new Adw.PreferencesPage({
@@ -38,12 +38,6 @@ function buildBehaviorGroup(settings) {
         "show-indicator"
     ));
 
-    group.add(createSwitchRow(
-        "Play Audio",
-        "Play audio when the wallpaper is active",
-        settings,
-        "play-audio"
-    ));
 
     group.add(createSwitchRow(
         "Pause on Fullscreen",

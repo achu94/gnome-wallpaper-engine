@@ -66,28 +66,6 @@ export function mediaFormat(filename, videoPath, stream = false) {
     return JSON.stringify({ format, codec, length, meta, title, url, hasChapters});
 }
 
-export function mpvSocket(sessionId, commandArray) {
-    if (!sessionId) return null;
-    const socketPath = `/tmp/mpvsocket-${sessionId}`;
-    try {
-        const address = Gio.UnixSocketAddress.new(socketPath);
-        const client = new Gio.SocketClient();
-        const connection = client.connect(address, null);
-        if (!connection) return null;
-
-        connection.get_output_stream().write_bytes(new GLib.Bytes(JSON.stringify({ command: commandArray }) + '\n'), null);
-        const dataInputStream = new Gio.DataInputStream({ base_stream: connection.get_input_stream() });
-        const [line] = dataInputStream.read_line(null);
-        let result = line ? JSON.parse(new TextDecoder().decode(line)).data : null;
-
-        connection.close(null);
-        return result;
-    } catch (error) {
-        console.error(`[Wallpaper] Failed to send IPC command to ${socketPath}: ${error.message}`);
-        return null;
-    }
-}
-
 export function extractImage(videoPath, thumbPath, thumbTime = "00:00:10") {
     let target = videoPath;
 

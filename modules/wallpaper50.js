@@ -7,8 +7,8 @@ import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
-import { mediaFormat, mpvSocket } from "./ytWallpaper.js";
-import { getBackgroundsDir } from "./utils.js";
+import { mediaFormat } from "./mediaWallpaper.js";
+import { getBackgroundsDir , mpvSocket } from "./utils.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
 
@@ -74,14 +74,64 @@ export class Wallpaper {
 
         const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        if (!GLib.getenv("WAYLAND_DISPLAY") || !Meta.WaylandClient?.new_subprocess) {
-            Main.notify("Gnome Live Wallpaper", "GNOME Shell 50 on Wayland is required.");
-            return;
-        }
-
         const mpvPath = GLib.find_program_in_path("mpv");
         if (!mpvPath) {
             Main.notify("Gnome Live Wallpaper", "mpv was not found.");
+            return;
+        }
+
+        const showVideo = this._ext._settings.get_boolean("show-video");
+
+        // If show-video is disabled, run mpv headlessly with audio and IPC socket enabled.
+        if (!showVideo) {
+            const playAudio = this._ext._settings.get_boolean("play-audio");
+            if (!playAudio) return;
+
+            const sessionId = GLib.uuid_string_random();
+            this._sessionId = sessionId;
+            const socketPath = `/tmp/mpvsocket-${sessionId}`;
+            const streamFormat = mediaFormat(filename, videoPath, true);
+
+            const argv = [
+                mpvPath,
+                "--no-video",
+                "--loop-file=inf",
+                "--no-terminal",
+                `--input-ipc-server=${socketPath}`,
+                ...streamFormat,
+                videoPath,
+            ];
+
+            try {
+                this._process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+
+                const process = this._process;
+                process.wait_async(null, (subprocess, result) => {
+                    try {
+                        subprocess.wait_finish(result);
+                    } catch (error) {
+                        logError(error);
+                    }
+
+                    if (this._process !== process) return;
+
+                    this._process = null;
+                    this._sessionId = null;
+                    if (!process.get_successful()) {
+                        Main.notify("Gnome Live Wallpaper", "mpv audio process stopped unexpectedly.");
+                    }
+                });
+            } catch (error) {
+                console.error("[Wallpaper] Error starting audio/IPC process:", error);
+                Main.notify("Gnome Live Wallpaper", error.message);
+                this.stop();
+            }
+            return;
+        }
+
+        // --- Wayland / Video Pipeline ---
+        if (!GLib.getenv("WAYLAND_DISPLAY") || !Meta.WaylandClient?.new_subprocess) {
+            Main.notify("Gnome Live Wallpaper", "GNOME Shell 50 on Wayland is required.");
             return;
         }
 

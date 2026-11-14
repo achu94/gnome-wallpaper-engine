@@ -3,7 +3,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Gtk from "gi://Gtk";
 
-import { mediaFormat } from "../modules/ytWallpaper.js";
+import { mediaFormat } from "../modules/mediaWallpaper.js";
 
 export function getVideoMetadata(filePath) {
     const metadata = { resTag: "", codec: "", duration: null, hasChapters: false };
