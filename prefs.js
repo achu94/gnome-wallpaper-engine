@@ -2,6 +2,7 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 
 import { buildGalleryPage } from "./prefs/gallery.js";
 import { buildGeneralPage } from "./prefs/general.js";
+import { buildDisplaysPage } from "./prefs/displays.js";
 
 export default class WallpaperPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -9,7 +10,11 @@ export default class WallpaperPrefs extends ExtensionPreferences {
             "org.gnome.shell.extensions.gnome-wallpaper-engine"
         );
 
-        window.add(buildGalleryPage(this, window, settings));
+        const displaysPage = buildDisplaysPage(settings);
+        window.add(buildGalleryPage(this, window, settings, {
+            onFilesChanged: () => displaysPage.refreshFiles(),
+        }));
+        window.add(displaysPage);
         window.add(buildGeneralPage(settings, this));
     }
 }

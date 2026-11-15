@@ -8,6 +8,7 @@ import { Wallpaper as LegacyWallpaper } from "./modules/wallpaper.js";
 import { Wallpaper as Gnome50Wallpaper } from "./modules/wallpaper50.js";
 import { AutoPause } from "./modules/autoPause.js";
 import { WindowFilter } from "./modules/windowFilter.js";
+import { parseMonitorConfig } from "./modules/monitorConfig.js";
 
 import { debug } from "./modules/utils.js";
 
@@ -52,13 +53,16 @@ export default class WallpaperExtension extends Extension {
         );
         this._updateIndicatorVisibility();
 
-        this._settingsSignalId = this._settings.connect(
-            "changed::current-wallpaper",
-            () => this._wallpaper.start()
+        // The GNOME 50 renderer can restart just the monitors whose settings changed.
+        const applySettings = () => this._wallpaper.refresh
+            ? this._wallpaper.refresh()
+            : this._wallpaper.start();
+        this._settingsSignalIds = ["current-wallpaper", "monitor-config"].map((key) =>
+            this._settings.connect(`changed::${key}`, applySettings)
         );
 
         this._autoStartTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-            if (this._settings.get_boolean("autostart") && this._settings.get_string("current-wallpaper") !== "") {
+            if (this._settings.get_boolean("autostart") && this._hasAnyWallpaper()) {
                 this._wallpaper.start();
             }
             return GLib.SOURCE_REMOVE;
@@ -66,6 +70,12 @@ export default class WallpaperExtension extends Extension {
         
         this._autoPause = new AutoPause(this, this._wallpaper);
         this._autoPause.start();
+    }
+
+    _hasAnyWallpaper() {
+        if (this._settings.get_string("current-wallpaper") !== "") return true;
+        const config = parseMonitorConfig(this._settings.get_string("monitor-config"));
+        return Object.values(config).some((monitor) => monitor?.file);
     }
 
     _updateIndicatorVisibility() {
@@ -86,9 +96,9 @@ export default class WallpaperExtension extends Extension {
             this._autoStartTimeoutId = null;
         }
 
-        if (this._settingsSignalId) {
-            this._settings.disconnect(this._settingsSignalId);
-            this._settingsSignalId = null;
+        if (this._settingsSignalIds) {
+            for (const id of this._settingsSignalIds) this._settings.disconnect(id);
+            this._settingsSignalIds = null;
         }
 
         if (this._indicatorSignalId) {

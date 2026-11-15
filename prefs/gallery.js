@@ -1,47 +1,66 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
-import Gtk from "gi://Gtk";
 import GLib from "gi://GLib";
+import Gtk from "gi://Gtk";
 
 import { createWallpaperItem } from "./wallpaperItem.js";
-import { ensureBackgroundsDir, getBackgroundsDir } from "../modules/utils.js";
+import { getMonitors } from "./displays.js";
+import { importFiles, listVideosInFolder, listWallpaperFiles, ensureThumbnail } from "./library.js";
+import { getBackgroundsDir } from "../modules/utils.js";
+import { parseMonitorConfig, updateMonitor } from "../modules/monitorConfig.js";
 
-Gio._promisify(Gio.File.prototype, "copy_async", "copy_finish");
-Gio._promisify(
-    Gio.Subprocess.prototype,
-    "wait_check_async",
-    "wait_check_finish",
-);
+Gio._promisify(Gtk.FileDialog.prototype, "open", "open_finish");
+Gio._promisify(Gtk.FileDialog.prototype, "select_folder", "select_folder_finish");
 
-async function generateThumbnail(videoPath, thumbPath) {
-    try {
-        const cmd = [
-            "ffmpeg",
-            "-y",
-            "-ss",
-            "00:00:01",
-            "-i",
-            videoPath,
-            "-frames:v",
-            "1",
-            thumbPath,
-        ];
+const VIDEO_MIME_TYPES = [
+    "video/mp4", "video/webm", "image/gif", "video/x-matroska", "video/quicktime", "video/x-msvideo",
+];
 
-        const proc = Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE);
-        await proc.wait_check_async(null);
-    } catch (e) {
-        console.error(
-            `Fehler bei der Thumbnail-Generierung für ${videoPath}:`,
-            e,
-        );
+function isCancel(e) {
+    return e instanceof GLib.Error && (
+        e.matches(Gtk.DialogError, Gtk.DialogError.DISMISSED) ||
+        e.matches(Gtk.DialogError, Gtk.DialogError.CANCELLED));
+}
+
+
+// "All monitors" sets the default and clears per-monitor overrides;
+// a specific monitor only changes that monitor.
+function applyWallpaper(settings, target, fileName) {
+    let config = parseMonitorConfig(settings.get_string("monitor-config"));
+    if (target === null) {
+        for (const connector of Object.keys(config)) {
+            config = updateMonitor(config, connector, { file: "" });
+        }
+        settings.set_string("monitor-config", JSON.stringify(config));
+        settings.set_string("current-wallpaper", fileName);
+    } else {
+        config = updateMonitor(config, target, { file: fileName });
+        settings.set_string("monitor-config", JSON.stringify(config));
     }
 }
 
-export function buildGalleryPage(ext, window, settings) {
+export function buildGalleryPage(ext, window, settings, { onFilesChanged = () => {} } = {}) {
     const page = new Adw.PreferencesPage({
         title: "Gallery",
         icon_name: "folder-videos-symbolic",
     });
+
+    // --- Which monitor a click applies to ---
+    const monitors = getMonitors();
+    const targetGroup = new Adw.PreferencesGroup();
+    const targetRow = new Adw.ComboRow({
+        title: "Apply to",
+        subtitle: "Clicking a wallpaper sets it on this display",
+        model: Gtk.StringList.new([
+            "All monitors",
+            ...monitors.map(({ name, connector }) => `${name} (${connector})`),
+        ]),
+        visible: monitors.length > 1,
+    });
+    targetGroup.add(targetRow);
+    page.add(targetGroup);
+    const currentTarget = () =>
+        targetRow.selected === 0 ? null : monitors[targetRow.selected - 1].connector;
 
     const group = new Adw.PreferencesGroup({
         title: "Wallpaper Selection",
@@ -50,12 +69,21 @@ export function buildGalleryPage(ext, window, settings) {
 
     const addButton = new Gtk.Button({
         icon_name: "list-add-symbolic",
+        tooltip_text: "Add a video",
         valign: Gtk.Align.CENTER,
         css_classes: ["suggested-action", "pill"],
     });
 
+    const addFolderButton = new Gtk.Button({
+        icon_name: "folder-new-symbolic",
+        tooltip_text: "Add every video in a folder",
+        valign: Gtk.Align.CENTER,
+        css_classes: ["pill"],
+    });
+
     const openFolderButton = new Gtk.Button({
         icon_name: "folder-symbolic",
+        tooltip_text: "Open the wallpaper folder",
         valign: Gtk.Align.CENTER,
         css_classes: ["pill"],
     });
@@ -68,18 +96,23 @@ export function buildGalleryPage(ext, window, settings) {
     });
 
     const bgDir = getBackgroundsDir();
-    const directory = ensureBackgroundsDir();
 
-    const ensureThumbnail = async (fileName) => {
-        const fullPath = `${bgDir}/${fileName}`;
-        const baseName = fileName.substring(0, fileName.lastIndexOf("."));
-        const thumbPath = `${bgDir}/${baseName}-thumb.jpg`;
+    const spinner = new Gtk.Spinner({
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        visible: false,
+    });
+    spinner.set_size_request(64, 64);
 
-        const thumbFile = Gio.File.new_for_path(thumbPath);
+    const statusLabel = new Gtk.Label({ visible: false, wrap: true, css_classes: ["dim-label"] });
 
-        if (!thumbFile.query_exists(null)) {
-            await generateThumbnail(fullPath, thumbPath);
-        }
+    const setBusy = (busy, text = "") => {
+        spinner.visible = busy;
+        if (busy) spinner.start(); else spinner.stop();
+        statusLabel.label = text;
+        statusLabel.visible = text !== "";
+        addButton.sensitive = !busy;
+        addFolderButton.sensitive = !busy;
     };
 
     const refreshGallery = async () => {
@@ -88,93 +121,68 @@ export function buildGalleryPage(ext, window, settings) {
             flowBox.remove(child);
             child = flowBox.get_first_child();
         }
-
-        ensureBackgroundsDir();
-
-        try {
-            const enumerator = directory.enumerate_children(
-                "standard::name",
-                Gio.FileQueryInfoFlags.NONE,
-                null,
-            );
-
-            let info;
-            const supported = [".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
-
-            while ((info = enumerator.next_file(null)) !== null) {
-                const fileName = info.get_name();
-
-                if (
-                    supported.some((ext) =>
-                        fileName.toLowerCase().endsWith(ext),
-                    )
-                ) {
-                    await ensureThumbnail(fileName);
-                    flowBox.append(createWallpaperItem(bgDir, fileName));
-                }
-            }
-        } catch (e) {
-            console.error(e);
+        for (const fileName of listWallpaperFiles()) {
+            await ensureThumbnail(fileName);
+            flowBox.append(createWallpaperItem(bgDir, fileName));
         }
+        onFilesChanged();
     };
 
-    addButton.connect("clicked", () => {
-        const chooser = new Gtk.FileChooserNative({
-            title: "Select Video or GIF",
-            action: Gtk.FileChooserAction.OPEN,
-            modal: true,
-            transient_for: window,
-        });
+    addButton.connect("clicked", async () => {
+        const filter = new Gtk.FileFilter({ name: "Videos and GIFs" });
+        VIDEO_MIME_TYPES.forEach((type) => filter.add_mime_type(type));
+        const filters = new Gio.ListStore({ item_type: Gtk.FileFilter });
+        filters.append(filter);
+        const dialog = new Gtk.FileDialog({ title: "Select Video or GIF", modal: true, filters });
 
-        const filter = new Gtk.FileFilter();
-        filter.add_mime_type("video/mp4");
-        filter.add_mime_type("video/webm");
-        filter.add_mime_type("image/gif");
-        filter.add_mime_type("video/x-matroska");
-        filter.add_mime_type("video/quicktime");
-        filter.add_mime_type("video/x-msvideo");
-        chooser.add_filter(filter);
+        let file;
+        try {
+            file = await dialog.open(window, null);
+        } catch (e) {
+            if (!isCancel(e)) console.error(e);
+            return;
+        }
 
-        chooser.connect("response", async (res, response_id) => {
-            if (response_id === Gtk.ResponseType.ACCEPT) {
-                const sourceFile = chooser.get_file();
-                const fileName = sourceFile.get_basename();
+        setBusy(true);
+        const result = await importFiles([file]);
+        setBusy(false);
+        await refreshGallery();
+        if (result.failed.length === 0) {
+            applyWallpaper(settings, currentTarget(), file.get_basename());
+        } else {
+            setBusy(false, `Could not import ${file.get_basename()}.`);
+        }
+    });
 
-                const destPath = `${bgDir}/${fileName}`;
-                const destFile = Gio.File.new_for_path(destPath);
+    addFolderButton.connect("clicked", async () => {
+        const dialog = new Gtk.FileDialog({ title: "Select a Folder of Videos", modal: true });
 
-                spinner.visible = true;
-                spinner.start();
+        let folder;
+        try {
+            folder = await dialog.select_folder(window, null);
+        } catch (e) {
+            if (!isCancel(e)) console.error(e);
+            return;
+        }
 
-                try {
-                    await sourceFile.copy_async(
-                        destFile,
-                        Gio.FileCopyFlags.OVERWRITE,
-                        GLib.PRIORITY_DEFAULT,
-                        null,
-                        null,
-                    );
-
-                    await ensureThumbnail(fileName);
-
-                    spinner.stop();
-                    spinner.visible = false;
-
-                    await refreshGallery();
-
-                    settings.set_string("current-wallpaper", "");
-                    settings.set_string("current-wallpaper", fileName);
-                } catch (e) {
-                    spinner.stop();
-                    spinner.visible = false;
-                    console.error(e);
-                }
+        setBusy(true, "Looking for videos…");
+        try {
+            const videos = await listVideosInFolder(folder);
+            if (videos.length === 0) {
+                setBusy(false, `No supported videos in ${folder.get_basename()}.`);
+                return;
             }
-
-            chooser.destroy();
-        });
-
-        chooser.show();
+            const result = await importFiles(videos, (i, total, name) =>
+                setBusy(true, `Importing ${i} of ${total}: ${name}`));
+            await refreshGallery();
+            const parts = [`Added ${result.imported.length}`];
+            if (result.skipped.length) parts.push(`${result.skipped.length} already there`);
+            if (result.failed.length) parts.push(`${result.failed.length} failed: ${result.failed.join(", ")}`);
+            setBusy(false, `${parts.join(", ")}.`);
+        } catch (e) {
+            console.error(e);
+            setBusy(false, `Import failed: ${e.message}`);
+        }
     });
 
     openFolderButton.connect("clicked", () => {
@@ -183,7 +191,7 @@ export function buildGalleryPage(ext, window, settings) {
     });
 
     flowBox.connect("child-activated", (box, child) => {
-        settings.set_string("current-wallpaper", child.get_child()._fullPath);
+        applyWallpaper(settings, currentTarget(), child.get_child()._fullPath);
     });
 
     refreshGallery();
@@ -195,17 +203,12 @@ export function buildGalleryPage(ext, window, settings) {
     });
 
     buttonBox.append(addButton);
+    buttonBox.append(addFolderButton);
     buttonBox.append(openFolderButton);
-
-    const spinner = new Gtk.Spinner({
-        halign: Gtk.Align.CENTER,
-        valign: Gtk.Align.CENTER,
-        visible: false,
-    });
-    spinner.set_size_request(64, 64);
 
     group.add(buttonBox);
     group.add(spinner);
+    group.add(statusLabel);
     group.add(flowBox);
     page.add(group);
 
