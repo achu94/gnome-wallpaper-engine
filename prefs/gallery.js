@@ -4,10 +4,10 @@ import GLib from "gi://GLib";
 import Gtk from "gi://Gtk";
 
 import { createWallpaperItem } from "./wallpaperItem.js";
-import { getMonitors } from "./displays.js";
+import { buildScalingGroup, getMonitors, writeMonitor } from "./displays.js";
+import { createMonitorPickerGroup } from "./monitorPicker.js";
 import { importFiles, listVideosInFolder, listWallpaperFiles, ensureThumbnail } from "./library.js";
 import { getBackgroundsDir } from "../modules/utils.js";
-import { parseMonitorConfig, updateMonitor } from "../modules/monitorConfig.js";
 
 Gio._promisify(Gtk.FileDialog.prototype, "open", "open_finish");
 Gio._promisify(Gtk.FileDialog.prototype, "select_folder", "select_folder_finish");
@@ -23,19 +23,13 @@ function isCancel(e) {
 }
 
 
-// "All monitors" sets the default and clears per-monitor overrides;
-// a specific monitor only changes that monitor.
-function applyWallpaper(settings, target, fileName) {
-    let config = parseMonitorConfig(settings.get_string("monitor-config"));
-    if (target === null) {
-        for (const connector of Object.keys(config)) {
-            config = updateMonitor(config, connector, { file: "" });
-        }
-        settings.set_string("monitor-config", JSON.stringify(config));
+// Mirror: the clicked wallpaper goes on every display (the default).
+// Unique: it goes on the selected display only.
+function applyWallpaper(settings, connector, fileName) {
+    if (settings.get_string("wallpaper-mode") === "mirror" || !connector) {
         settings.set_string("current-wallpaper", fileName);
     } else {
-        config = updateMonitor(config, target, { file: fileName });
-        settings.set_string("monitor-config", JSON.stringify(config));
+        writeMonitor(settings, connector, { file: fileName });
     }
 }
 
@@ -45,22 +39,23 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
         icon_name: "folder-videos-symbolic",
     });
 
-    // --- Which monitor a click applies to ---
+    // --- Monitor picture, and the selected monitor's scaling ---
     const monitors = getMonitors();
-    const targetGroup = new Adw.PreferencesGroup();
-    const targetRow = new Adw.ComboRow({
-        title: "Apply to",
-        subtitle: "Clicking a wallpaper sets it on this display",
-        model: Gtk.StringList.new([
-            "All monitors",
-            ...monitors.map(({ name, connector }) => `${name} (${connector})`),
-        ]),
-        visible: monitors.length > 1,
+    const { group: pickerGroup, picker } = createMonitorPickerGroup(settings, monitors, {
+        onSelect: (connector) => showScaling(connector),
     });
-    targetGroup.add(targetRow);
-    page.add(targetGroup);
-    const currentTarget = () =>
-        targetRow.selected === 0 ? null : monitors[targetRow.selected - 1].connector;
+    page.add(pickerGroup);
+    // One scaling group per monitor; only the selected monitor's is visible.
+    const scalingGroups = new Map(monitors.map((m) => {
+        const group = buildScalingGroup(settings, m);
+        page.add(group);
+        return [m.connector, group];
+    }));
+    const showScaling = (connector) => {
+        for (const [c, group] of scalingGroups) group.visible = c === connector;
+    };
+    showScaling(picker.getSelected());
+    const currentTarget = () => picker.getSelected();
 
     const group = new Adw.PreferencesGroup({
         title: "Wallpaper Selection",
@@ -125,6 +120,7 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
             await ensureThumbnail(fileName);
             flowBox.append(createWallpaperItem(bgDir, fileName));
         }
+        picker.reload();
         onFilesChanged();
     };
 

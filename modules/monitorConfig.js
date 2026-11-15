@@ -36,12 +36,16 @@ export function parseMonitorConfig(json) {
     return {};
 }
 
+export const MODES = ["mirror", "unique"];
+
 // Full, validated settings for one monitor. An unset or empty file means
-// "use the default wallpaper" (the current-wallpaper key).
-export function resolveMonitor(config, connector, defaultFile) {
+// "use the default wallpaper" (the current-wallpaper key). In "mirror" mode
+// every monitor shows the default wallpaper; scaling stays per monitor.
+export function resolveMonitor(config, connector, defaultFile, mode = "unique") {
     const raw = config?.[connector] ?? {};
+    const ownFile = mode !== "mirror" && typeof raw.file === "string" && raw.file !== "";
     return {
-        file: typeof raw.file === "string" && raw.file !== "" ? raw.file : defaultFile,
+        file: ownFile ? raw.file : defaultFile,
         fit: FIT_MODES.includes(raw.fit) ? raw.fit : DEFAULTS.fit,
         zoom: clamp(raw.zoom, ZOOM_MIN, ZOOM_MAX, DEFAULTS.zoom),
         alignX: clamp(raw.alignX, -1, 1, DEFAULTS.alignX),

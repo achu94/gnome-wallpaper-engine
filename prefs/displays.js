@@ -12,91 +12,44 @@ import {
     resolveMonitor,
     updateMonitor,
 } from "../modules/monitorConfig.js";
-import { listWallpaperFiles } from "./library.js";
 
-const WRITE_DELAY_MS = 400; // sliders: wait until the user stops dragging
+const WRITE_DELAY_MS = 400;
+const SLIDER_WIDTH = 280; // sliders: wait until the user stops dragging
 
-// Connected monitors as [{ connector, name, width, height }].
+// Connected monitors as [{ connector, name, number, x, y, width, height }].
 export function getMonitors() {
     const list = Gdk.Display.get_default().get_monitors();
     const monitors = [];
     for (let i = 0; i < list.get_n_items(); i++) {
         const monitor = list.get_item(i);
-        const { width, height } = monitor.get_geometry();
+        const { x, y, width, height } = monitor.get_geometry();
         const connector = monitor.get_connector() ?? `monitor-${i}`;
         const name = monitor.get_description?.()
             || [monitor.get_manufacturer(), monitor.get_model()].filter(Boolean).join(" ")
             || `Monitor ${i + 1}`;
-        monitors.push({ connector, name, width, height });
+        monitors.push({ connector, name, number: i + 1, x, y, width, height });
     }
     return monitors;
 }
 
-function readConfig(settings) {
+export function readConfig(settings) {
     return parseMonitorConfig(settings.get_string("monitor-config"));
 }
 
-function writeMonitor(settings, connector, patch) {
+export function writeMonitor(settings, connector, patch) {
     const config = updateMonitor(readConfig(settings), connector, patch);
     settings.set_string("monitor-config", JSON.stringify(config));
 }
 
-export function buildDisplaysPage(settings) {
-    const page = new Adw.PreferencesPage({
-        title: "Displays",
-        icon_name: "video-display-symbolic",
-    });
-
-    const groups = getMonitors().map((monitor) => buildMonitorGroup(settings, monitor));
-    groups.forEach(({ group }) => page.add(group));
-
-    // Called by the gallery after an import so the wallpaper lists stay current.
-    page.refreshFiles = () => groups.forEach(({ refreshFiles }) => refreshFiles());
-
-    return page;
-}
-
-function buildMonitorGroup(settings, { connector, name, width, height }) {
+// Scaling, zoom and position for one monitor, shown under the monitor picture.
+export function buildScalingGroup(settings, { connector, name, number, width, height }) {
     const group = new Adw.PreferencesGroup({
-        title: name,
+        title: `${number}  ${name}`,
         description: `${connector} · ${width}×${height}`,
     });
 
     const current = () =>
         resolveMonitor(readConfig(settings), connector, "");
-
-    // --- Wallpaper ---
-    const fileModel = new Gtk.StringList();
-    let files = [];
-    const fileRow = new Adw.ComboRow({ title: "Wallpaper", model: fileModel });
-    let updatingFiles = false;
-
-    const refreshFiles = () => {
-        updatingFiles = true;
-        files = listWallpaperFiles();
-        fileModel.splice(0, fileModel.get_n_items(), ["Same as default", ...files]);
-        const file = current().file;
-        fileRow.selected = file ? files.indexOf(file) + 1 : 0;
-        updatingFiles = false;
-    };
-    fileRow.connect("notify::selected", () => {
-        if (updatingFiles) return;
-        const index = fileRow.selected;
-        writeMonitor(settings, connector, { file: index > 0 ? files[index - 1] : "" });
-    });
-    refreshFiles();
-    group.add(fileRow);
-    // The gallery can change this monitor's wallpaper while this page is open.
-    const configChangedId = settings.connect("changed::monitor-config", () => {
-        const file = current().file;
-        const wanted = file ? files.indexOf(file) + 1 : 0;
-        if (fileRow.selected !== wanted) {
-            updatingFiles = true;
-            fileRow.selected = wanted;
-            updatingFiles = false;
-        }
-    });
-    fileRow.connect("destroy", () => settings.disconnect(configChangedId));
 
     // --- Scaling ---
     const fitRow = new Adw.ComboRow({
@@ -118,7 +71,7 @@ function buildMonitorGroup(settings, { connector, name, width, height }) {
         max: ZOOM_MAX * 100,
         step: 5,
         value: current().zoom * 100,
-        marks: [[100, "100%"]],
+        marks: [[100, null]],
         toSetting: (v) => Math.round(v) / 100,
         format: (v) => `${Math.round(v)}%`,
     });
@@ -159,15 +112,15 @@ function buildMonitorGroup(settings, { connector, name, width, height }) {
     resetRow.add_suffix(resetButton);
     group.add(resetRow);
 
-    return { group, refreshFiles };
+    return group;
 }
 
 function addSlider(group, settings, connector, opts) {
     const row = new Adw.ActionRow({ title: opts.title, subtitle: opts.subtitle ?? "" });
     const scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, opts.min, opts.max, opts.step);
     scale.set_value(opts.value);
-    scale.set_hexpand(true);
-    scale.set_size_request(260, -1);
+    scale.set_hexpand(false);
+    scale.set_size_request(SLIDER_WIDTH, -1);
     scale.set_valign(Gtk.Align.CENTER);
     for (const [value, label] of opts.marks) {
         scale.add_mark(value, Gtk.PositionType.BOTTOM, label);

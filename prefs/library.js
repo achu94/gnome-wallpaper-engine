@@ -9,6 +9,7 @@ Gio._promisify(Gio.File.prototype, "copy_async", "copy_finish");
 Gio._promisify(Gio.File.prototype, "enumerate_children_async", "enumerate_children_finish");
 Gio._promisify(Gio.FileEnumerator.prototype, "next_files_async", "next_files_finish");
 Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish");
+Gio._promisify(Gio.Subprocess.prototype, "communicate_utf8_async", "communicate_utf8_finish");
 
 export function thumbPathFor(fileName) {
     const dot = fileName.lastIndexOf(".");
@@ -16,10 +17,26 @@ export function thumbPathFor(fileName) {
     return `${getBackgroundsDir()}/${baseName}-thumb.jpg`;
 }
 
+// Many wallpapers fade in from black, so take the frame 30% of the way in.
+async function thumbnailTime(videoPath) {
+    try {
+        const proc = Gio.Subprocess.new(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", videoPath],
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE,
+        );
+        const [stdout] = await proc.communicate_utf8_async(null, null);
+        const duration = Number.parseFloat(stdout);
+        if (Number.isFinite(duration) && duration > 0) return (duration * 0.3).toFixed(2);
+    } catch (_) {
+        // fall back below
+    }
+    return "1";
+}
+
 async function generateThumbnail(videoPath, thumbPath) {
     try {
         const proc = Gio.Subprocess.new(
-            ["ffmpeg", "-y", "-ss", "00:00:01", "-i", videoPath, "-frames:v", "1", thumbPath],
+            ["ffmpeg", "-y", "-ss", await thumbnailTime(videoPath), "-i", videoPath, "-frames:v", "1", thumbPath],
             Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE,
         );
         await proc.wait_check_async(null);

@@ -85,12 +85,13 @@ export class Wallpaper {
         const settings = this._ext._settings;
         const defaultFile = settings.get_string("current-wallpaper");
         const config = parseMonitorConfig(settings.get_string("monitor-config"));
+        const mode = settings.get_string("wallpaper-mode");
         const connectors = getConnectorsByIndex();
 
         return Main.layoutManager.monitors
             .map((monitor) => {
                 const connector = connectors.get(monitor.index) ?? `monitor-${monitor.index}`;
-                const resolved = resolveMonitor(config, connector, defaultFile);
+                const resolved = resolveMonitor(config, connector, defaultFile, mode);
                 return {
                     connector,
                     monitor,

@@ -68,7 +68,7 @@ export default class WallpaperExtension extends Extension {
                 return GLib.SOURCE_REMOVE;
             });
         };
-        this._settingsSignalIds = ["current-wallpaper", "monitor-config"].map((key) =>
+        this._settingsSignalIds = ["current-wallpaper", "monitor-config", "wallpaper-mode"].map((key) =>
             this._settings.connect(`changed::${key}`, applySettings)
         );
 
@@ -85,6 +85,7 @@ export default class WallpaperExtension extends Extension {
 
     _hasAnyWallpaper() {
         if (this._settings.get_string("current-wallpaper") !== "") return true;
+        if (this._settings.get_string("wallpaper-mode") === "mirror") return false;
         const config = parseMonitorConfig(this._settings.get_string("monitor-config"));
         return Object.values(config).some((monitor) => monitor?.file);
     }
