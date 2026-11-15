@@ -8,8 +8,15 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
+import {
+    buildScalingArgs,
+    parseMonitorConfig,
+    resolveMonitor,
+} from "./monitorConfig.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
+const MAP_TIMEOUT_MS = 5000;
+const OFFSCREEN_GAP = 1;
 
 // Mutter skips CPU culling for actors with an active effect. Without this,
 // the off-screen source is culled as fully obscured on fractionally scaled
@@ -28,13 +35,27 @@ function getMonitorBounds(monitors) {
     return { x, y, width: right - x, height: bottom - y };
 }
 
-function getRelativeMonitorBounds(bounds, monitor) {
-    return {
-        x: monitor.x - bounds.x,
-        y: monitor.y - bounds.y,
-        width: monitor.width,
-        height: monitor.height,
-    };
+// layoutManager.monitors index -> connector name ("DP-3"). Falls back to
+// "monitor-<index>" if Mutter's monitor manager isn't reachable.
+function getConnectorsByIndex() {
+    const byIndex = new Map();
+    try {
+        const manager = global.backend.get_monitor_manager();
+        for (const monitor of manager.get_monitors()) {
+            const connector = monitor.get_connector();
+            const index = manager.get_monitor_for_connector(connector);
+            if (index >= 0) byIndex.set(index, connector);
+        }
+    } catch (error) {
+        console.error("[Wallpaper] Could not read monitor connectors:", error);
+    }
+    return byIndex;
+}
+
+function thumbPathFor(bgDir, filename) {
+    const dot = filename.lastIndexOf(".");
+    const baseName = dot === -1 ? filename : filename.substring(0, dot);
+    return GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
 }
 
 export class Wallpaper {
@@ -42,11 +63,10 @@ export class Wallpaper {
         this._ext = ext;
         this._windowFilter = windowFilter;
         this._staticWallpaper = new StaticWallpaper();
-        this._process = null;
-        this._sessionId = null;
-        this._sourceActor = null;
-        this._clones = [];
-        this._mapTimeoutId = null;
+        // One session per monitor: { connector, monitor, key, settings,
+        // sessionId, process, sourceActor, clone, mapTimeoutId }
+        this._sessions = [];
+        this._running = false;
 
         this._windowMapId = global.window_manager.connect_after(
             "map",
@@ -55,24 +75,50 @@ export class Wallpaper {
         this._monitorsChangedId = Main.layoutManager.connect(
             "monitors-changed",
             () => {
-                if (this._sessionId) this.start();
+                if (this._running) this.start();
             }
         );
     }
 
+    // What each monitor should show right now, from settings.
+    _desiredSessions() {
+        const settings = this._ext._settings;
+        const defaultFile = settings.get_string("current-wallpaper");
+        const config = parseMonitorConfig(settings.get_string("monitor-config"));
+        const mode = settings.get_string("wallpaper-mode");
+        const connectors = getConnectorsByIndex();
+
+        return Main.layoutManager.monitors
+            .map((monitor) => {
+                const connector = connectors.get(monitor.index) ?? `monitor-${monitor.index}`;
+                const resolved = resolveMonitor(config, connector, defaultFile, mode);
+                return {
+                    connector,
+                    monitor,
+                    settings: resolved,
+                    // Restart a monitor only when something that affects it changed.
+                    key: JSON.stringify([resolved, monitor.x, monitor.y, monitor.width, monitor.height]),
+                };
+            })
+            .filter(({ settings }) => settings.file !== "");
+    }
+
     start() {
         this.stop();
+        this._running = true;
+        this._sync();
+    }
 
-        const filename = this._ext._settings.get_string("current-wallpaper");
-        if (!filename) return;
+    // Apply changed settings, restarting only the monitors whose settings changed.
+    refresh() {
+        if (!this._running) {
+            this.start();
+            return;
+        }
+        this._sync();
+    }
 
-        const bgDir = getBackgroundsDir();
-        const baseName = filename.substring(0, filename.lastIndexOf("."));
-        const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
-        this._staticWallpaper.set(thumbPath);
-
-        const videoPath = GLib.build_filenamev([bgDir, filename]);
-
+    _sync() {
         if (!GLib.getenv("WAYLAND_DISPLAY") || !Meta.WaylandClient?.new_subprocess) {
             Main.notify("Gnome Live Wallpaper", "GNOME Shell 50 on Wayland is required.");
             return;
@@ -84,16 +130,43 @@ export class Wallpaper {
             return;
         }
 
-        const monitors = [...Main.layoutManager.monitors].sort(
-            (a, b) => a.x - b.x || a.y - b.y
-        );
-        const bounds = getMonitorBounds(monitors);
-        if (!bounds) return;
-        const sourceMonitor = monitors[0];
+        const desired = this._desiredSessions();
+        const bgDir = getBackgroundsDir();
 
+        // Static fallback (shown while stopped/paused): the default wallpaper's
+        // thumbnail, or the first monitor's if there is no default.
+        const staticFile = this._ext._settings.get_string("current-wallpaper") || desired[0]?.settings.file;
+        if (staticFile) this._staticWallpaper.set(thumbPathFor(bgDir, staticFile));
+
+        const wanted = new Map(desired.map((d) => [d.connector, d]));
+        for (const session of [...this._sessions]) {
+            const want = wanted.get(session.connector);
+            if (want && want.key === session.key) {
+                wanted.delete(session.connector); // unchanged, keep playing
+            } else {
+                this._stopSession(session);
+            }
+        }
+
+        for (const want of wanted.values()) {
+            this._startSession(want, mpvPath, bgDir);
+        }
+    }
+
+    _startSession({ connector, monitor, settings, key }, mpvPath, bgDir) {
         const sessionId = GLib.uuid_string_random();
-        this._sessionId = sessionId;
-        const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
+        const session = {
+            connector,
+            monitor,
+            settings,
+            key,
+            sessionId,
+            process: null,
+            sourceActor: null,
+            clone: null,
+            mapTimeoutId: null,
+        };
+
         const argv = [
             mpvPath,
             "--vo=gpu",
@@ -103,196 +176,169 @@ export class Wallpaper {
             "--loop-file=inf",
             "--no-audio",
             "--force-window=immediate",
-            `--title=${windowTitle}`,
-            `--geometry=${sourceMonitor.width}x${sourceMonitor.height}+0+0`,
-            "--keepaspect=yes",
+            `--title=${RENDERER_WINDOW_PREFIX}${sessionId}`,
+            `--geometry=${monitor.width}x${monitor.height}+0+0`,
             "--keepaspect-window=no",
             "--no-auto-window-resize",
-            "--panscan=1.0",
-            "--video-unscaled=no",
+            ...buildScalingArgs(settings),
             "--osc=no",
             "--osd-bar=no",
             "--input-default-bindings=no",
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--no-terminal",
-            videoPath,
+            GLib.build_filenamev([bgDir, settings.file]),
         ];
 
         try {
-            const launcher = new Gio.SubprocessLauncher({
-                flags: Gio.SubprocessFlags.NONE,
-            });
+            const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
             try {
-                const waylandClient = Meta.WaylandClient.new_subprocess(
-                    global.context,
-                    launcher,
-                    argv
-                );
-                this._process = waylandClient.get_subprocess();
+                const waylandClient = Meta.WaylandClient.new_subprocess(global.context, launcher, argv);
+                session.process = waylandClient.get_subprocess();
             } finally {
                 if (launcher.close) launcher.close();
             }
-
-            if (!this._process) throw new Error("Could not start the mpv Wayland client");
-
-            const process = this._process;
-            process.wait_async(null, (subprocess, result) => {
-                try {
-                    subprocess.wait_finish(result);
-                } catch (error) {
-                    logError(error);
-                }
-
-                if (this._process !== process) return;
-
-                this._process = null;
-                this._sessionId = null;
-                this._sourceActor = null;
-                this._destroyClones();
-                if (this._mapTimeoutId) {
-                    GLib.source_remove(this._mapTimeoutId);
-                    this._mapTimeoutId = null;
-                }
-                if (!process.get_successful()) {
-                    Main.notify("Gnome Live Wallpaper", "mpv stopped unexpectedly.");
-                }
-            });
-
-            this._mapTimeoutId = GLib.timeout_add(
-                GLib.PRIORITY_DEFAULT,
-                5000,
-                () => {
-                    this._mapTimeoutId = null;
-                    if (this._sessionId === sessionId && !this._sourceActor) {
-                        Main.notify("Gnome Live Wallpaper", "The mpv window could not be attached.");
-                        this.stop();
-                    }
-                    return GLib.SOURCE_REMOVE;
-                }
-            );
+            if (!session.process) throw new Error("Could not start the mpv Wayland client");
         } catch (error) {
-            console.error("[Wallpaper] Error starting renderer:", error);
+            console.error(`[Wallpaper] Error starting renderer for ${connector}:`, error);
             Main.notify("Gnome Live Wallpaper", error.message);
-            this.stop();
+            return;
         }
+
+        this._sessions.push(session);
+
+        const process = session.process;
+        process.wait_async(null, (subprocess, result) => {
+            try {
+                subprocess.wait_finish(result);
+            } catch (error) {
+                logError(error);
+            }
+            if (session.process !== process) return; // stopped on purpose
+            session.process = null;
+            const crashed = !process.get_successful();
+            this._stopSession(session);
+            if (crashed) {
+                Main.notify("Gnome Live Wallpaper", `mpv stopped unexpectedly on ${connector}.`);
+            }
+        });
+
+        session.mapTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, MAP_TIMEOUT_MS, () => {
+            session.mapTimeoutId = null;
+            if (this._sessions.includes(session) && !session.sourceActor) {
+                Main.notify("Gnome Live Wallpaper", `The mpv window for ${connector} could not be attached.`);
+                this._stopSession(session);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _onWindowMapped(windowActor) {
-        if (!this._sessionId || this._sourceActor) return;
+        if (!this._sessions.length) return;
 
         const metaWindow = windowActor.get_meta_window();
         const title = metaWindow?.get_title();
         if (!title?.startsWith(RENDERER_WINDOW_PREFIX)) return;
-        if (title !== `${RENDERER_WINDOW_PREFIX}${this._sessionId}`) return;
 
-        const monitors = [...Main.layoutManager.monitors].sort(
-            (a, b) => a.x - b.x || a.y - b.y
+        const session = this._sessions.find(
+            (s) => !s.sourceActor && title === `${RENDERER_WINDOW_PREFIX}${s.sessionId}`
         );
-        const bounds = getMonitorBounds(monitors);
-        const sourceMonitor = monitors[0];
-        const backgroundGroup = Main.layoutManager._backgroundGroup;
+        if (!session) return;
 
-        if (!bounds || !sourceMonitor || !backgroundGroup) {
+        const backgroundGroup = Main.layoutManager._backgroundGroup;
+        const bounds = getMonitorBounds(Main.layoutManager.monitors);
+        if (!bounds || !backgroundGroup) {
             Main.notify("Gnome Live Wallpaper", "GNOME's wallpaper layer is unavailable.");
-            this.stop();
+            this._stopSession(session);
             return;
         }
 
         try {
-            const sourceBounds = getRelativeMonitorBounds(bounds, sourceMonitor);
-            const localMonitorBounds = monitors.map((monitor) =>
-                getRelativeMonitorBounds(bounds, monitor)
-            );
-
-            metaWindow.set_type(Meta.WindowType.DESKTOP);
-            metaWindow.stick();
-            metaWindow.focus_on_click = false;
-            if (typeof metaWindow.set_accept_focus === "function") {
-                metaWindow.set_accept_focus(false);
-            }
-            try {
-                metaWindow.set_input_region(new Cairo.Region());
-            } catch (_) {
-                // Some windowing backends don't support assigning an empty input region.
-            }
-            metaWindow.move_resize_frame(
-                true,
-                sourceMonitor.x,
-                sourceMonitor.y,
-                sourceMonitor.width,
-                sourceMonitor.height
-            );
-            windowActor.set_position(sourceBounds.x, sourceBounds.y);
-            windowActor.set_size(sourceBounds.width, sourceBounds.height);
-            this._sourceActor = windowActor;
-            const parent = windowActor.get_parent();
-            if (parent) parent.remove_child(windowActor);
-            backgroundGroup.add_child(windowActor);
-            windowActor.set_opacity(255);
-            windowActor.set_reactive(false);
-            windowActor.add_effect_with_name("gwe-no-cull", new NoCullEffect());
-
-            this._clones = localMonitorBounds.map((localBounds) => {
-                const clone = new Clutter.Clone({ source: windowActor });
-
-                clone.set_position(localBounds.x, localBounds.y);
-                clone.set_size(localBounds.width, localBounds.height);
-                clone.set_clip_to_allocation(true);
-                clone.set_reactive(false);
-                backgroundGroup.add_child(clone);
-                return clone;
-            });
-
-            const sourceX = bounds.x - sourceMonitor.width - 1;
-            const hiddenSourceBounds = {
-                x: -sourceMonitor.width - 1,
-                y: sourceMonitor.y - bounds.y,
-            };
-            metaWindow.move_resize_frame(
-                true,
-                sourceX,
-                sourceMonitor.y,
-                sourceMonitor.width,
-                sourceMonitor.height
-            );
-            windowActor.set_position(hiddenSourceBounds.x, hiddenSourceBounds.y);
-            metaWindow.lower();
-            this._windowFilter?.addWindow(metaWindow);
-
-            if (this._mapTimeoutId) {
-                GLib.source_remove(this._mapTimeoutId);
-                this._mapTimeoutId = null;
-            }
-
-            windowActor.connect("destroy", () => {
-                this._windowFilter?.removeWindow(metaWindow);
-                this._destroyClones();
-                if (this._sourceActor !== windowActor) return;
-                this._sourceActor = null;
-            });
+            this._attach(session, windowActor, metaWindow, backgroundGroup, bounds);
         } catch (error) {
             console.error("[Wallpaper] Error attaching renderer:", error);
             Main.notify("Gnome Live Wallpaper", error.message);
-            this.stop();
+            this._stopSession(session);
         }
+    }
+
+    _attach(session, windowActor, metaWindow, backgroundGroup, bounds) {
+        const { monitor } = session;
+
+        metaWindow.set_type(Meta.WindowType.DESKTOP);
+        metaWindow.stick();
+        metaWindow.focus_on_click = false;
+        if (typeof metaWindow.set_accept_focus === "function") {
+            metaWindow.set_accept_focus(false);
+        }
+        try {
+            metaWindow.set_input_region(new Cairo.Region());
+        } catch (_) {
+            // Some windowing backends don't support assigning an empty input region.
+        }
+
+        session.sourceActor = windowActor;
+        const parent = windowActor.get_parent();
+        if (parent) parent.remove_child(windowActor);
+        backgroundGroup.add_child(windowActor);
+        windowActor.set_opacity(255);
+        windowActor.set_reactive(false);
+        windowActor.add_effect_with_name("gwe-no-cull", new NoCullEffect());
+
+        // The visible copy sits on its monitor; the real window is parked off-screen.
+        const clone = new Clutter.Clone({ source: windowActor });
+        clone.set_position(monitor.x - bounds.x, monitor.y - bounds.y);
+        clone.set_size(monitor.width, monitor.height);
+        clone.set_clip_to_allocation(true);
+        clone.set_reactive(false);
+        backgroundGroup.add_child(clone);
+        session.clone = clone;
+
+        // Park each source left of the desktop in a slot fixed by monitor index,
+        // so sources never overlap even after only some monitors restart.
+        const offset = Main.layoutManager.monitors
+            .filter((m) => m.index <= monitor.index)
+            .reduce((sum, m) => sum + m.width + OFFSCREEN_GAP, 0);
+        metaWindow.move_resize_frame(true, bounds.x - offset, monitor.y, monitor.width, monitor.height);
+        windowActor.set_position(-offset, monitor.y - bounds.y);
+        windowActor.set_size(monitor.width, monitor.height);
+        metaWindow.lower();
+        this._windowFilter?.addWindow(metaWindow);
+
+        if (session.mapTimeoutId) {
+            GLib.source_remove(session.mapTimeoutId);
+            session.mapTimeoutId = null;
+        }
+
+        windowActor.connect("destroy", () => {
+            this._windowFilter?.removeWindow(metaWindow);
+            if (session.sourceActor !== windowActor) return;
+            session.sourceActor = null;
+            session.clone?.destroy();
+            session.clone = null;
+        });
+    }
+
+    _stopSession(session) {
+        const index = this._sessions.indexOf(session);
+        if (index !== -1) this._sessions.splice(index, 1);
+
+        if (session.mapTimeoutId) {
+            GLib.source_remove(session.mapTimeoutId);
+            session.mapTimeoutId = null;
+        }
+        session.clone?.destroy();
+        session.clone = null;
+        session.sourceActor = null;
+
+        const process = session.process;
+        session.process = null;
+        if (process) process.force_exit();
     }
 
     stop() {
-        this._sessionId = null;
-        if (this._mapTimeoutId) {
-            GLib.source_remove(this._mapTimeoutId);
-            this._mapTimeoutId = null;
-        }
-        this._destroyClones();
-        this._sourceActor = null;
-        if (this._process) this._process.force_exit();
-        this._process = null;
-    }
-
-    _destroyClones() {
-        for (const clone of this._clones) clone.destroy();
-        this._clones = [];
+        this._running = false;
+        for (const session of [...this._sessions]) this._stopSession(session);
     }
 
     destroy() {

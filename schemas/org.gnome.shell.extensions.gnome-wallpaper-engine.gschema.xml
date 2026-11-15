@@ -23,5 +23,18 @@
             <default>''</default>
             <summary>Der Pfad zum aktuellen Hintergrund</summary>
         </key>
+        <key name="wallpaper-mode" type="s">
+            <choices>
+                <choice value="mirror"/>
+                <choice value="unique"/>
+            </choices>
+            <default>'mirror'</default>
+            <summary>Mirror the same wallpaper on every display, or a unique one per display</summary>
+        </key>
+        <key name="monitor-config" type="s">
+            <default>'{}'</default>
+            <summary>Per-monitor wallpaper settings</summary>
+            <description>JSON object keyed by monitor connector (e.g. DP-3): file, fit (fill/fit/stretch/center), zoom, alignX, alignY. Monitors without an entry use current-wallpaper with Fill.</description>
+        </key>
     </schema>
 </schemalist>

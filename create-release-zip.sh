@@ -21,6 +21,7 @@ rsync -av ./ "$OUTPUT_DIR/" \
   --exclude=".git" \
   --exclude="update-extension.sh" \
   --exclude="debug.sh" \
+  --exclude="tests" \
   --exclude="$SCRIPT_NAME" \
   --exclude="$OUTPUT_DIR"
 
