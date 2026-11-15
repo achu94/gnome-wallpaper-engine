@@ -4,9 +4,10 @@ import GLib from "gi://GLib";
 import Gtk from "gi://Gtk";
 
 import { createWallpaperItem } from "./wallpaperItem.js";
-import { buildScalingGroup, getMonitors, writeMonitor } from "./displays.js";
+import { buildScalingGroup, getMonitors, readConfig, writeMonitor } from "./displays.js";
 import { createMonitorPickerGroup } from "./monitorPicker.js";
-import { importFiles, listVideosInFolder, listWallpaperFiles, ensureThumbnail } from "./library.js";
+import { importFiles, listVideosInFolder, listWallpaperFiles, ensureThumbnail, thumbPathFor } from "./library.js";
+import { forgetFile, resolveMonitor } from "../modules/monitorConfig.js";
 import { getBackgroundsDir } from "../modules/utils.js";
 
 Gio._promisify(Gtk.FileDialog.prototype, "open", "open_finish");
@@ -39,10 +40,15 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
         icon_name: "folder-videos-symbolic",
     });
 
+    let onSelectionChanged = () => {};
+
     // --- Monitor picture, and the selected monitor's scaling ---
     const monitors = getMonitors();
     const { group: pickerGroup, picker } = createMonitorPickerGroup(settings, monitors, {
-        onSelect: (connector) => showScaling(connector),
+        onSelect: (connector) => {
+            showScaling(connector);
+            onSelectionChanged();
+        },
     });
     page.add(pickerGroup);
     // One scaling group per monitor; only the selected monitor's is visible.
@@ -57,38 +63,51 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
     showScaling(picker.getSelected());
     const currentTarget = () => picker.getSelected();
 
-    const group = new Adw.PreferencesGroup({
-        title: "Wallpaper Selection",
-        description: "Supported formats: MP4, WebM, MKV, MOV, AVI, GIF",
-    });
-
-    const addButton = new Gtk.Button({
-        icon_name: "list-add-symbolic",
-        tooltip_text: "Add a video",
+    // --- Video grid, laid out like GNOME Settings' Background page ---
+    const headerButton = (icon, label, tooltip) => new Gtk.Button({
+        child: new Adw.ButtonContent({ icon_name: icon, label }),
+        tooltip_text: tooltip,
+        css_classes: ["flat"],
         valign: Gtk.Align.CENTER,
-        css_classes: ["suggested-action", "pill"],
     });
-
-    const addFolderButton = new Gtk.Button({
-        icon_name: "folder-new-symbolic",
-        tooltip_text: "Add every video in a folder",
-        valign: Gtk.Align.CENTER,
-        css_classes: ["pill"],
-    });
-
+    const addButton = headerButton("list-add-symbolic", "Add Video…", "Add a video or GIF");
+    const addFolderButton = headerButton("folder-new-symbolic", "Add Folder…", "Add every video in a folder");
     const openFolderButton = new Gtk.Button({
-        icon_name: "folder-symbolic",
+        icon_name: "folder-open-symbolic",
         tooltip_text: "Open the wallpaper folder",
+        css_classes: ["flat"],
         valign: Gtk.Align.CENTER,
-        css_classes: ["pill"],
+    });
+    const headerBox = new Gtk.Box({ spacing: 6 });
+    [addButton, addFolderButton, openFolderButton].forEach((b) => headerBox.append(b));
+
+    const group = new Adw.PreferencesGroup({
+        title: "Videos",
+        description: "MP4, WebM, MKV, MOV, AVI and GIF",
+        header_suffix: headerBox,
     });
 
     const flowBox = new Gtk.FlowBox({
         valign: Gtk.Align.START,
-        selection_mode: Gtk.SelectionMode.SINGLE,
-        row_spacing: 4,
-        column_spacing: 4,
+        selection_mode: Gtk.SelectionMode.NONE,
+        homogeneous: true,
+        min_children_per_line: 3,
+        max_children_per_line: 3,
+        row_spacing: 12,
+        column_spacing: 12,
+        css_classes: ["gwe-grid"],
     });
+    const card = new Gtk.Box({ css_classes: ["card"], orientation: Gtk.Orientation.VERTICAL });
+    card.append(flowBox);
+
+    const emptyLabel = new Gtk.Label({
+        label: "No videos yet. Use Add Video… or Add Folder…",
+        css_classes: ["dim-label"],
+        margin_top: 24,
+        margin_bottom: 24,
+        visible: false,
+    });
+    card.append(emptyLabel);
 
     const bgDir = getBackgroundsDir();
 
@@ -97,9 +116,9 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
         valign: Gtk.Align.CENTER,
         visible: false,
     });
-    spinner.set_size_request(64, 64);
+    spinner.set_size_request(32, 32);
 
-    const statusLabel = new Gtk.Label({ visible: false, wrap: true, css_classes: ["dim-label"] });
+    const statusLabel = new Gtk.Label({ visible: false, wrap: true, css_classes: ["dim-label"], margin_bottom: 6 });
 
     const setBusy = (busy, text = "") => {
         spinner.visible = busy;
@@ -110,16 +129,56 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
         addFolderButton.sensitive = !busy;
     };
 
+    // The tile outlined in accent: the selected display's video (Unique) or
+    // the shared one (Mirror).
+    const tiles = new Map();
+    const shownFile = () => {
+        const mode = settings.get_string("wallpaper-mode");
+        const defaultFile = settings.get_string("current-wallpaper");
+        if (mode === "mirror") return defaultFile;
+        return resolveMonitor(readConfig(settings), currentTarget(), defaultFile, mode).file;
+    };
+    const updateHighlight = () => {
+        const file = shownFile();
+        for (const [name, tile] of tiles) tile.setSelected(name === file);
+    };
+    onSelectionChanged = updateHighlight;
+    const highlightIds = ["wallpaper-mode", "current-wallpaper", "monitor-config"].map((key) =>
+        settings.connect(`changed::${key}`, updateHighlight));
+    page.connect("destroy", () => highlightIds.forEach((id) => settings.disconnect(id)));
+
+    // × on a tile: move the video and its thumbnail to the Trash (recoverable),
+    // and point any display that used it back at the default.
+    const removeVideo = async (fileName) => {
+        try {
+            Gio.File.new_for_path(`${bgDir}/${fileName}`).trash(null);
+            try { Gio.File.new_for_path(thumbPathFor(fileName)).trash(null); } catch (_) { /* no thumb */ }
+        } catch (e) {
+            setBusy(false, `Could not move ${fileName} to the Trash: ${e.message}`);
+            return;
+        }
+        settings.set_string("monitor-config", JSON.stringify(forgetFile(readConfig(settings), fileName)));
+        if (settings.get_string("current-wallpaper") === fileName) {
+            settings.set_string("current-wallpaper", "");
+        }
+        setBusy(false, `Moved ${fileName} to the Trash.`);
+        await refreshGallery();
+    };
+
     const refreshGallery = async () => {
-        let child = flowBox.get_first_child();
-        while (child) {
-            flowBox.remove(child);
-            child = flowBox.get_first_child();
-        }
-        for (const fileName of listWallpaperFiles()) {
+        let child;
+        while ((child = flowBox.get_first_child())) flowBox.remove(child);
+        tiles.clear();
+        const files = listWallpaperFiles();
+        for (const fileName of files) {
             await ensureThumbnail(fileName);
-            flowBox.append(createWallpaperItem(bgDir, fileName));
+            const tile = createWallpaperItem(fileName, { onRemove: removeVideo });
+            tiles.set(fileName, tile);
+            flowBox.append(tile);
         }
+        flowBox.visible = files.length > 0;
+        emptyLabel.visible = files.length === 0;
+        updateHighlight();
         picker.reload();
         onFilesChanged();
     };
@@ -186,26 +245,15 @@ export function buildGalleryPage(ext, window, settings, { onFilesChanged = () =>
         Gio.AppInfo.launch_default_for_uri(dir.get_uri(), null);
     });
 
-    flowBox.connect("child-activated", (box, child) => {
+    flowBox.connect("child-activated", (_box, child) => {
         applyWallpaper(settings, currentTarget(), child.get_child()._fullPath);
     });
 
     refreshGallery();
 
-    const buttonBox = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
-        spacing: 12,
-        margin_bottom: 12,
-    });
-
-    buttonBox.append(addButton);
-    buttonBox.append(addFolderButton);
-    buttonBox.append(openFolderButton);
-
-    group.add(buttonBox);
-    group.add(spinner);
     group.add(statusLabel);
-    group.add(flowBox);
+    group.add(spinner);
+    group.add(card);
     page.add(group);
 
     return page;

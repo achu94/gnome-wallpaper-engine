@@ -7,6 +7,7 @@ import {
     updateMonitor,
     buildScalingArgs,
     filterVideoFiles,
+    forgetFile,
 } from "../modules/monitorConfig.js";
 
 let failures = 0;
@@ -72,6 +73,12 @@ eq(buildScalingArgs({ ...base, fit: "fill", zoom: 2, alignX: -1, alignY: 0.5 }).
 eq(filterVideoFiles(["a.MP4", "b-thumb.jpg", "c.webm", "notes.txt", ".hidden.mp4", "d.gif"]),
     ["a.MP4", "c.webm", "d.gif"],
     "folder import keeps only supported, non-hidden videos");
+
+// forgetFile: removing a video clears every monitor that used it
+const cfg = { "DP-2": { file: "gone.mp4", fit: "fit" }, "DP-3": { file: "keep.mp4" } };
+eq(forgetFile(cfg, "gone.mp4"), { "DP-2": { file: "", fit: "fit" }, "DP-3": { file: "keep.mp4" } },
+    "forgetFile clears matching monitors and keeps their scaling");
+eq(cfg["DP-2"].file, "gone.mp4", "forgetFile does not mutate input");
 
 print(`${passed} passed, ${failures} failed`);
 if (failures) System.exit(1);

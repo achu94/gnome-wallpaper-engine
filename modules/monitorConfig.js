@@ -79,3 +79,9 @@ export function isVideoFile(name) {
 export function filterVideoFiles(names) {
     return names.filter(isVideoFile);
 }
+
+// Config with every monitor that showed `file` reset to the default wallpaper.
+export function forgetFile(config, file) {
+    return Object.fromEntries(Object.entries(config).map(([connector, monitor]) =>
+        [connector, monitor?.file === file ? { ...monitor, file: "" } : monitor]));
+}
