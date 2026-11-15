@@ -293,10 +293,11 @@ export class Wallpaper {
         backgroundGroup.add_child(clone);
         session.clone = clone;
 
-        // Park each source left of the desktop, side by side so they never overlap.
-        const offset = this._sessions
-            .slice(0, this._sessions.indexOf(session) + 1)
-            .reduce((sum, s) => sum + s.monitor.width + OFFSCREEN_GAP, 0);
+        // Park each source left of the desktop in a slot fixed by monitor index,
+        // so sources never overlap even after only some monitors restart.
+        const offset = Main.layoutManager.monitors
+            .filter((m) => m.index <= monitor.index)
+            .reduce((sum, m) => sum + m.width + OFFSCREEN_GAP, 0);
         metaWindow.move_resize_frame(true, bounds.x - offset, monitor.y, monitor.width, monitor.height);
         windowActor.set_position(-offset, monitor.y - bounds.y);
         windowActor.set_size(monitor.width, monitor.height);

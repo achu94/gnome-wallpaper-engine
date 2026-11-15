@@ -86,6 +86,17 @@ function buildMonitorGroup(settings, { connector, name, width, height }) {
     });
     refreshFiles();
     group.add(fileRow);
+    // The gallery can change this monitor's wallpaper while this page is open.
+    const configChangedId = settings.connect("changed::monitor-config", () => {
+        const file = current().file;
+        const wanted = file ? files.indexOf(file) + 1 : 0;
+        if (fileRow.selected !== wanted) {
+            updatingFiles = true;
+            fileRow.selected = wanted;
+            updatingFiles = false;
+        }
+    });
+    fileRow.connect("destroy", () => settings.disconnect(configChangedId));
 
     // --- Scaling ---
     const fitRow = new Adw.ComboRow({
@@ -169,17 +180,21 @@ function addSlider(group, settings, connector, opts) {
     }
 
     let timeoutId = null;
+    const write = () => writeMonitor(settings, connector, { [opts.key]: opts.toSetting(scale.get_value()) });
     scale.connect("value-changed", () => {
         if (timeoutId) GLib.source_remove(timeoutId);
         timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, WRITE_DELAY_MS, () => {
             timeoutId = null;
-            writeMonitor(settings, connector, { [opts.key]: opts.toSetting(scale.get_value()) });
+            write();
             return GLib.SOURCE_REMOVE;
         });
     });
+    // Closing the window mid-drag still saves the last value.
     scale.connect("destroy", () => {
-        if (timeoutId) GLib.source_remove(timeoutId);
+        if (!timeoutId) return;
+        GLib.source_remove(timeoutId);
         timeoutId = null;
+        write();
     });
 
     row.add_suffix(scale);

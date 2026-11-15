@@ -12,6 +12,8 @@ import { parseMonitorConfig } from "./modules/monitorConfig.js";
 
 import { debug } from "./modules/utils.js";
 
+const APPLY_DELAY_MS = 150;
+
 export default class WallpaperExtension extends Extension {
     enable() {
         this._mpvExists = GLib.find_program_in_path("mpv");
@@ -54,9 +56,18 @@ export default class WallpaperExtension extends Extension {
         this._updateIndicatorVisibility();
 
         // The GNOME 50 renderer can restart just the monitors whose settings changed.
-        const applySettings = () => this._wallpaper.refresh
-            ? this._wallpaper.refresh()
-            : this._wallpaper.start();
+        // Prefs often write both keys at once, so wait briefly and apply once.
+        // While auto-paused, do nothing: AutoPause restarts with fresh settings.
+        const applySettings = () => {
+            if (this._applyTimeoutId) GLib.source_remove(this._applyTimeoutId);
+            this._applyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, APPLY_DELAY_MS, () => {
+                this._applyTimeoutId = null;
+                if (this._autoPause?.isPaused) return GLib.SOURCE_REMOVE;
+                if (this._wallpaper.refresh) this._wallpaper.refresh();
+                else this._wallpaper.start();
+                return GLib.SOURCE_REMOVE;
+            });
+        };
         this._settingsSignalIds = ["current-wallpaper", "monitor-config"].map((key) =>
             this._settings.connect(`changed::${key}`, applySettings)
         );
@@ -94,6 +105,11 @@ export default class WallpaperExtension extends Extension {
         if (this._autoStartTimeoutId) {
             GLib.source_remove(this._autoStartTimeoutId);
             this._autoStartTimeoutId = null;
+        }
+
+        if (this._applyTimeoutId) {
+            GLib.source_remove(this._applyTimeoutId);
+            this._applyTimeoutId = null;
         }
 
         if (this._settingsSignalIds) {

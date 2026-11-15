@@ -97,6 +97,8 @@ export async function importFiles(sourceFiles, onProgress = () => {}) {
             } else {
                 await source.copy_async(dest, Gio.FileCopyFlags.OVERWRITE, GLib.PRIORITY_DEFAULT, null, null);
                 result.imported.push(name);
+                // Replaced contents need a fresh thumbnail.
+                try { Gio.File.new_for_path(thumbPathFor(name)).delete(null); } catch (_) { /* none yet */ }
             }
             await ensureThumbnail(name);
         } catch (e) {

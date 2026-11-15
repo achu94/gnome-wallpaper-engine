@@ -18,6 +18,10 @@ export class AutoPause {
         this._initBattery();
     }
 
+    get isPaused() {
+        return this._isPaused;
+    }
+
     start() {
         if (this._timeoutId) return;
 
