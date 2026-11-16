@@ -46,7 +46,7 @@ And if you enjoy the project, a ⭐ on GitHub is always appreciated!
 - 📦 **Minimal Setup:** Only requires mpv and ffmpeg
 - 🎞️ **Wide Format Support:** MP4, GIF, WebM, MKV and more
 - 🔁 **Autostart:** Automatically start wallpaper on login
-- 🧩 **Tray Icon Toggle:** Show or hide the top panel indicator
+- 🧩 **Tray Icon Toggle:** Show or hide the top panel media menu
 - ⏸️ **Auto Pause (Fullscreen):** Pauses when a fullscreen app is active
 - 🔋 **Auto Pause (Battery):** Pauses when running on battery to save power
 
@@ -114,7 +114,7 @@ Then:
 - X11: Press `Alt + F2`, type `r`, press Enter
 
 Finally, enable the extension using the **Extensions** app  
-(or via the top panel indicator if enabled).
+(or via the top panel media menu if enabled).
 
 ---
 
@@ -153,7 +153,7 @@ glib-compile-schemas ~/.local/share/gnome-shell/extensions/gnome-wallpaper-engin
 2. Click **"Add Video/GIF"**
 3. Select a wallpaper from the gallery
 4. Wallpapers are applied instantly
-5. Optionally use the top panel indicator to start or stop playback
+5. Optionally use the top panel media menu to start or stop playback
 6. Optionally hide the tray icon from the settings
 
 ---

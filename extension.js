@@ -3,21 +3,23 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { PACKAGE_VERSION } from "resource:///org/gnome/shell/misc/config.js";
 import GLib from "gi://GLib";
 
-import { Indicator } from "./indicator.js";
+import { mediaMenu } from "./modules/mediaMenu.js";
 import { Wallpaper as LegacyWallpaper } from "./modules/wallpaper.js";
 import { Wallpaper as Gnome50Wallpaper } from "./modules/wallpaper50.js";
 import { AutoPause } from "./modules/autoPause.js";
 import { WindowFilter } from "./modules/windowFilter.js";
 
-import { debug } from "./modules/utils.js";
+import { debug , loadPath } from "./modules/utils.js";
 
 export default class WallpaperExtension extends Extension {
     enable() {
+        loadPath();
         this._mpvExists = GLib.find_program_in_path("mpv");
         this._ffmpegExists = GLib.find_program_in_path('ffmpeg');
-        
+        this._ytdlpExists = GLib.find_program_in_path("yt-dlp");
+
         let missing = [];
-        
+
         if (!this._mpvExists) {
             missing.push("'mpv'");
         }
@@ -25,18 +27,22 @@ export default class WallpaperExtension extends Extension {
         if (!this._ffmpegExists) {
             missing.push("'ffmpeg'");
         }
-        
+
+        if (!this._ytdlpExists) {
+            missing.push("'yt-dlp'");
+        }
+
         if (missing.length > 0) {
             let msg = "Error: Missing dependencies: " + missing.join(" and ");
             Main.notify("Gnome Live Wallpaper", msg);
             return;
         }
-        
+
         globalThis.debug = debug;
 
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
 
-        this._indicator = null;
+        this._mediaMenu = null;
 
         this._windowFilter = new WindowFilter();
         this._windowFilter.enable();
@@ -45,15 +51,25 @@ export default class WallpaperExtension extends Extension {
             ? Gnome50Wallpaper
             : LegacyWallpaper;
         this._wallpaper = new WallpaperRenderer(this, this._windowFilter);
-        
-        this._indicatorSignalId = this._settings.connect(
-            "changed::show-indicator",
-            () => this._updateIndicatorVisibility()
+
+        this._mediaMenuSignalId = this._settings.connect(
+            "changed::show-mediamenu",
+            () => this._updatemediaMenuVisibility()
         );
-        this._updateIndicatorVisibility();
+        this._updatemediaMenuVisibility();
 
         this._settingsSignalId = this._settings.connect(
             "changed::current-wallpaper",
+            () => this._wallpaper.start()
+        );
+
+        this._audioSettingSignalId = this._settings.connect(
+            "changed::play-audio",
+            () => this._wallpaper.start()
+        );
+
+        this._videoSettingSignalId = this._settings.connect(
+            "changed::show-video",
             () => this._wallpaper.start()
         );
 
@@ -63,20 +79,20 @@ export default class WallpaperExtension extends Extension {
             }
             return GLib.SOURCE_REMOVE;
         });
-        
+
         this._autoPause = new AutoPause(this, this._wallpaper);
         this._autoPause.start();
     }
 
-    _updateIndicatorVisibility() {
-        const show = this._settings.get_boolean("show-indicator");
+    _updatemediaMenuVisibility() {
+        const show = this._settings.get_boolean("show-mediamenu");
 
-        if (show && !this._indicator) {
-            this._indicator = new Indicator(this);
-            Main.panel.addToStatusArea(this.uuid, this._indicator);
-        } else if (!show && this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
+        if (show && !this._mediaMenu) {
+            this._mediaMenu = new mediaMenu(this);
+            Main.panel.addToStatusArea(this.uuid, this._mediaMenu);
+        } else if (!show && this._mediaMenu) {
+            this._mediaMenu.destroy();
+            this._mediaMenu = null;
         }
     }
 
@@ -91,9 +107,19 @@ export default class WallpaperExtension extends Extension {
             this._settingsSignalId = null;
         }
 
-        if (this._indicatorSignalId) {
-            this._settings.disconnect(this._indicatorSignalId);
-            this._indicatorSignalId = null;
+        if (this._mediaMenuSignalId) {
+            this._settings.disconnect(this._mediaMenuSignalId);
+            this._mediaMenuSignalId = null;
+        }
+
+        if (this._audioSettingSignalId) {
+            this._settings.disconnect(this._audioSettingSignalId);
+            this._audioSettingSignalId = null;
+        }
+
+        if (this._videoSettingSignalId) {
+            this._settings.disconnect(this._videoSettingSignalId);
+            this._videoSettingSignalId = null;
         }
 
         if (this._wallpaper) {
@@ -106,9 +132,9 @@ export default class WallpaperExtension extends Extension {
             this._windowFilter = null;
         }
 
-        if (this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
+        if (this._mediaMenu) {
+            this._mediaMenu.destroy();
+            this._mediaMenu = null;
         }
 
         if (this._autoPause) {

@@ -7,7 +7,9 @@ import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
+import { mediaFormat } from "./mediaWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
+import { mpvSocket , cleanupSocket } from "./menuUtils.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
 
@@ -66,21 +68,73 @@ export class Wallpaper {
         const filename = this._ext._settings.get_string("current-wallpaper");
         if (!filename) return;
 
-        const bgDir = getBackgroundsDir();
+        const bgDir = getBackgroundsDir(this._ext._settings);
         const baseName = filename.substring(0, filename.lastIndexOf("."));
         const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
         this._staticWallpaper.set(thumbPath);
 
         const videoPath = GLib.build_filenamev([bgDir, filename]);
 
-        if (!GLib.getenv("WAYLAND_DISPLAY") || !Meta.WaylandClient?.new_subprocess) {
-            Main.notify("Gnome Live Wallpaper", "GNOME Shell 50 on Wayland is required.");
-            return;
-        }
-
         const mpvPath = GLib.find_program_in_path("mpv");
         if (!mpvPath) {
             Main.notify("Gnome Live Wallpaper", "mpv was not found.");
+            return;
+        }
+
+        const showVideo = this._ext._settings.get_boolean("show-video");
+
+        // If show-video is disabled, run mpv headlessly with audio and IPC socket enabled.
+        if (!showVideo) {
+            const playAudio = this._ext._settings.get_boolean("play-audio");
+            if (!playAudio) return;
+
+            const sessionId = GLib.uuid_string_random();
+            this._sessionId = sessionId;
+            const socketDir = `/tmp/mpvsocket/${sessionId}`;
+            GLib.mkdir_with_parents(socketDir, 0o700);
+            const socketPath = `${socketDir}/socket`;
+            const streamFormat = mediaFormat(filename, videoPath, true);
+
+            const argv = [
+                mpvPath,
+                "--no-video",
+                "--loop-file=inf",
+                "--no-terminal",
+                `--input-ipc-server=${socketPath}`,
+                ...streamFormat,
+                videoPath,
+            ];
+
+            try {
+                this._process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+
+                const process = this._process;
+                process.wait_async(null, (subprocess, result) => {
+                    try {
+                        subprocess.wait_finish(result);
+                    } catch (error) {
+                        logError(error);
+                    }
+
+                    if (this._process !== process) return;
+
+                    this._process = null;
+                    this._sessionId = null;
+                    if (!process.get_successful()) {
+                        Main.notify("Gnome Live Wallpaper", "mpv audio process stopped unexpectedly.");
+                    }
+                });
+            } catch (error) {
+                console.error("[Wallpaper] Error starting audio/IPC process:", error);
+                Main.notify("Gnome Live Wallpaper", error.message);
+                this.stop();
+            }
+            return;
+        }
+
+        // --- Wayland / Video Pipeline ---
+        if (!GLib.getenv("WAYLAND_DISPLAY") || !Meta.WaylandClient?.new_subprocess) {
+            Main.notify("Gnome Live Wallpaper", "GNOME Shell 50 on Wayland is required.");
             return;
         }
 
@@ -93,6 +147,10 @@ export class Wallpaper {
 
         const sessionId = GLib.uuid_string_random();
         this._sessionId = sessionId;
+        const socketDir = `/tmp/mpvsocket/${sessionId}`;
+        GLib.mkdir_with_parents(socketDir, 0o700);
+        const socketPath = `${socketDir}/socket`;
+        const streamFormat = mediaFormat(filename, videoPath, true);
         const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
         const argv = [
             mpvPath,
@@ -101,7 +159,6 @@ export class Wallpaper {
             "--hwdec=auto",
             "--no-border",
             "--loop-file=inf",
-            "--no-audio",
             "--force-window=immediate",
             `--title=${windowTitle}`,
             `--geometry=${sourceMonitor.width}x${sourceMonitor.height}+0+0`,
@@ -116,6 +173,9 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--no-terminal",
+            `--input-ipc-server=${socketPath}`,
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
+            ...streamFormat,
             videoPath,
         ];
 
@@ -176,6 +236,10 @@ export class Wallpaper {
             Main.notify("Gnome Live Wallpaper", error.message);
             this.stop();
         }
+    }
+
+    _sendCommand(commandArray) {
+        return mpvSocket(this._sessionId, commandArray);
     }
 
     _onWindowMapped(windowActor) {
@@ -278,12 +342,19 @@ export class Wallpaper {
         }
     }
 
-    stop() {
+  stop() {
+       try {
+          cleanupSocket();
+       } catch (e) {
+          console.error(`Failed to delete socket directory: ${e.message}`);
+       }
+
         this._sessionId = null;
         if (this._mapTimeoutId) {
             GLib.source_remove(this._mapTimeoutId);
             this._mapTimeoutId = null;
         }
+
         this._destroyClones();
         this._sourceActor = null;
         if (this._process) this._process.force_exit();

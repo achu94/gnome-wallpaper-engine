@@ -1,6 +1,16 @@
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
 
+export function loadPath() {
+    // We need this as different distros and install mechanism drop mpv,ffmeg and yt-dlp
+    // in different places, sometimes they are only included in the userspace.
+    const currentPath = GLib.getenv("PATH") || "";
+    const homeBin = GLib.build_filenamev([GLib.get_home_dir(), ".local", "bin"]);
+    if (!currentPath.includes(homeBin)) {
+        GLib.setenv("PATH", `${homeBin}:${currentPath}`, true);
+    }
+}
+
 export function debug(msg) {
     try {
         if (msg === null) {
@@ -29,13 +39,20 @@ function getCircularReplacer() {
     };
 }
 
-export function getBackgroundsDir() {
-    const dataDir = GLib.get_user_data_dir();
-    return GLib.build_filenamev([
-        dataDir,
-        "gnome-wallpaper-engine",
-        "backgrounds",
-    ]);
+export function getBackgroundsDir(settings = null) {
+    try {
+        const s = settings || new Gio.Settings({ schema_id: 'org.gnome.shell.extensions.gnome-wallpaper-engine' });
+        const customDir = s.get_string("backgrounds-directory");
+
+        if (customDir && customDir !== '') {
+            return customDir;
+        }
+    } catch (e) {
+        // Fallback if schema is not found or fails to load
+    }
+
+    const videosDir = GLib.get_user_special_dir(GLib.UserDirectory.G_USER_DIRECTORY_VIDEOS);
+    return GLib.build_filenamev([videosDir, "wallpapers"]);
 }
 
 export function ensureBackgroundsDir() {

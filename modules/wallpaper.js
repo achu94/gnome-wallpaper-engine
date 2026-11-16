@@ -5,6 +5,7 @@ import GLib from "gi://GLib";
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
 import { getBackgroundsDir } from "./utils.js";
+import { mpvSocket } from "./menuUtils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -26,17 +27,20 @@ export class Wallpaper {
         const filename = settings.get_string("current-wallpaper");
         if (!filename) return;
 
-        const bgDir = getBackgroundsDir();
+        const bgDir = getBackgroundsDir(settings);
         const videoPath = GLib.build_filenamev([bgDir, filename]);
         const baseName = filename.substring(0, filename.lastIndexOf("."));
         const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
         this._staticWallpaper.set(thumbPath);
+        const socketDir = `/tmp/mpvsocket/${sessionId}`;
+        GLib.mkdir_with_parents(socketDir, 0o700);
+        const socketPath = `${socketDir}/socket`;
+        const streamFormat = mediaFormat(filename, videoPath, true);
 
         const command = [
             "mpv",
             "--no-border",
             "--loop=inf",
-            "--no-audio",
             "--force-window=yes",
             "--ontop=no",
             "--keep-open=yes",
@@ -51,6 +55,9 @@ export class Wallpaper {
             "--input-vo-keyboard=no",
             "--cursor-autohide=no",
             "--hwdec=auto",
+            `--input-ipc-server=${socketPath}`,
+            ...(this._ext._settings.get_boolean("play-audio") ? [] : ["--no-audio"]),
+            ...streamFormat,
             videoPath,
         ];
 
@@ -82,6 +89,10 @@ export class Wallpaper {
         } catch (error) {
             logError(error);
         }
+    }
+
+    _sendCommand(commandArray) {
+        return mpvSocket(this._sessionId, commandArray);
     }
 
     _applyWindowRules() {
