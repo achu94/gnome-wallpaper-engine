@@ -6,7 +6,7 @@
             <default>true</default>
             <summary>Autostart the wallpaper</summary>
         </key>
-        <key name="show-indicator" type="b">
+        <key name="show-mediamenu" type="b">
             <default>true</default>
             <summary>Show or hide the tray icon</summary>
         </key>

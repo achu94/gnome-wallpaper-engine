@@ -23,6 +23,12 @@
 .controls-container {
     padding-top: 1px;
     padding-bottom: 1px;
+    color: white;
+}
+
+.wallpaper-name {
+    max-width: 24em;
+    width: 24em;
 }
 
 .card:selected {
@@ -32,7 +38,6 @@
 .wallpaper-label {
     background-color: rgba(30, 30, 30, 0.6);
     border-radius: 4px;
-    color: white;
     padding: 2px 6px;
     font-weight: bold;
     font-size: 0.9rem;
@@ -41,7 +46,6 @@
 .wallpaper-tag {
     background-color: rgba(0, 0, 0, 0.7);
     border-radius: 4px;
-    color: #eee;
     padding: 1px 4px;
     font-size: 0.7rem;
     font-weight: bold;
@@ -50,7 +54,6 @@
 .installed-tag {
     background-color: rgba(42, 42, 42, 0.9);
     border-radius: 4px;
-    color: white;
     padding: 2px 6px;
     font-weight: bold;
     font-size: 0.8rem;

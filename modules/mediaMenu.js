@@ -1,18 +1,38 @@
 import GObject from "gi://GObject";
 import St from "gi://St";
-import Gio from "gi://Gio";
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
+import Pango from "gi://Pango";
 
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-import { getBackgroundsDir } from "./modules/utils.js";
+import { debug } from "./utils.js";
+import {
+    isWallpaperRunning,
+    updateControls,
+    scrollWallpaper,
+    getWallpaperList,
+    updatechapterName,
+    cleanupTickers,
+} from "./menuUtils.js";
 
-export const Indicator = GObject.registerClass(
-    class Indicator extends PanelMenu.Button {
+export const mediaMenu = GObject.registerClass(
+    class mediaMenu extends PanelMenu.Button {
         _init(extension) {
             super._init(0.0, "Wallpaper Engine");
             this._extension = extension;
+            this._updateControls = (...args) => {
+                debug("mediaMenu: calling _updateControls");
+                updateControls.apply(this, args);
+            };
+            this._isWallpaperRunning = isWallpaperRunning.bind(this);
+            this._scrollWallpaper = scrollWallpaper.bind(this);
+            this._getWallpaperList = getWallpaperList.bind(this);
+            this._updatechapterName = (...args) => {
+                debug("mediaMenu: calling _updatechapterName");
+                updatechapterName.apply(this, args);
+            };
+            this._cleanupTickers = cleanupTickers.bind(this);
 
             this.add_child(
                 new St.Icon({
@@ -26,8 +46,8 @@ export const Indicator = GObject.registerClass(
             this._settingsSignalId = this._extension._settings.connect(
                 "changed::current-wallpaper",
                 () => {
-                    // Use idle_add to ensure the extension has started the wallpaper process
                     GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                        if (!this._extension) return GLib.SOURCE_REMOVE;
                         this._updateControls();
                         return GLib.SOURCE_REMOVE;
                     });
@@ -35,109 +55,12 @@ export const Indicator = GObject.registerClass(
             );
         }
 
-        _isWallpaperRunning() {
-            const wp = this._extension._wallpaper;
-            if (!wp) return false;
-            return !!(wp._process || wp._sessionId || wp._mpvProcess);
-        }
-
-        _updateControls(forceRunning = false) {
-            const running = forceRunning || this._isWallpaperRunning();
-            const showVideo = this._extension._settings.get_boolean("show-video");
-            const playAudio = this._extension._settings.get_boolean("play-audio");
-
-            // Video Controls
-            [this._playPauseButton, this._prevVideoButton, this._nextVideoButton].forEach((btn) => {
-                btn.reactive = running;
-                if (running) {
-                    btn.remove_style_class_name("disabled");
-                } else {
-                    btn.add_style_class_name("disabled");
-                }
-            });
-
-            // Start/Stop Button Icon
-            this._startStopButton.child = running ? this._stopIcon : this._startIcon;
-
-            // Video Toggles
-            // Video/Audio Toggles
-            if (this._videoButton) {
-                this._videoButton.set_child(new St.Icon({
-                    icon_name: "video-display-symbolic",
-                    style_class: "popup-menu-icon",
-                }));
-
-                if (showVideo) {
-                    this._videoButton.remove_style_class_name("disabled");
-                } else {
-                    this._videoButton.add_style_class_name("disabled");
-                }
-            }
-            if (this._audioButton) {
-                this._audioButton.set_child(new St.Icon({
-                    icon_name: "audio-speakers-symbolic",
-                    style_class: "popup-menu-icon",
-                }));
-
-                if (playAudio) {
-                    this._audioButton.remove_style_class_name("disabled");
-                } else {
-                    this._audioButton.add_style_class_name("disabled");
-                }
-            }
-        }
-
-        _scrollWallpaper(direction) {
-            const list = this._getWallpaperList();
-            if (list.length === 0) return;
-            const current = this._extension._settings.get_string("current-wallpaper");
-            let index = list.indexOf(current);
-            if (index === -1) {
-                index = direction === "prev" ? list.length - 1 : 0;
-            } else {
-                if (direction === "next") {
-                    index = (index + 1) % list.length;
-                } else if (direction === "prev") {
-                    index = (index - 1 + list.length) % list.length;
-                }
-            }
-          this._extension._settings.set_string("current-wallpaper", list[index]);
-          this._updateControls();
-        }
-
-        _getWallpaperList() {
-            const bgDir = getBackgroundsDir(this._extension._settings);
-            const directory = Gio.File.new_for_path(bgDir);
-            const supported = [".m3u",".mp4", ".webm", ".gif", ".mkv", ".mov", ".avi"];
-            const files = [];
-
-            try {
-                if (!directory.query_exists(null)) return files;
-
-                const enumerator = directory.enumerate_children(
-                    "standard::name",
-                    Gio.FileQueryInfoFlags.NONE,
-                    null,
-                );
-
-                let info;
-                while ((info = enumerator.next_file(null)) !== null) {
-                    const fileName = info.get_name();
-                    if (supported.some((ext) => fileName.toLowerCase().endsWith(ext))) {
-                        files.push(fileName);
-                    }
-                }
-            } catch (e) {
-                console.error(e);
-            }
-            return files.sort();
-        }
-
         _buildMenu() {
+            this._cleanupTickers();
             this.menu.removeAll();
 
             // Wallpaper Controls Section
-            const title = new PopupMenu.PopupMenuItem("Wallpaper", { reactive: false });
+            const title = new PopupMenu.PopupMenuItem("Wallpaper Menu", { reactive: false });
             title.add_style_class_name("title");
             this.menu.addMenuItem(title);
 
@@ -153,18 +76,15 @@ export const Indicator = GObject.registerClass(
                 x_expand: true,
             });
 
-            this._startIcon = new St.Icon({
+            this._startStopIcon = new St.Icon({
                 icon_name: "media-playback-start-symbolic",
-                style_class: "popup-menu-icon",
-            });
-            this._stopIcon = new St.Icon({
-                icon_name: "media-playback-stop-symbolic",
                 style_class: "popup-menu-icon",
             });
 
             this._startStopButton = new St.Button({
                 can_focus: true,
                 style_class: "menubutton",
+                child: this._startStopIcon,
             });
 
             this._startStopButton.connect("clicked", () => {
@@ -176,35 +96,26 @@ export const Indicator = GObject.registerClass(
                 this._updateControls();
             });
 
-            const prevIcon = new St.Icon({
-                icon_name: "media-skip-backward-symbolic",
-                style_class: "popup-menu-icon",
-            });
-
             const prevButton = new St.Button({
                 can_focus: true,
                 style_class: "menubutton",
-                child: prevIcon,
-            });
-
-            const nextIcon = new St.Icon({
-                icon_name: "media-skip-forward-symbolic",
-                style_class: "popup-menu-icon",
+                child: new St.Icon({
+                    icon_name: "media-skip-backward-symbolic",
+                    style_class: "popup-menu-icon",
+                }),
             });
 
             const nextButton = new St.Button({
                 can_focus: true,
                 style_class: "menubutton",
-                child: nextIcon,
+                child: new St.Icon({
+                    icon_name: "media-skip-forward-symbolic",
+                    style_class: "popup-menu-icon",
+                }),
             });
 
-            prevButton.connect("clicked", () => {
-                this._scrollWallpaper("prev");
-            });
-
-            nextButton.connect("clicked", () => {
-                this._scrollWallpaper("next");
-            });
+            prevButton.connect("clicked", () => this._scrollWallpaper("prev"));
+            nextButton.connect("clicked", () => this._scrollWallpaper("next"));
 
             // Video Toggle Button
             this._videoButton = new St.Button({
@@ -219,7 +130,6 @@ export const Indicator = GObject.registerClass(
                 const currentVideo = this._extension._settings.get_boolean("show-video");
                 const currentAudio = this._extension._settings.get_boolean("play-audio");
                 if (currentVideo && !currentAudio) {
-                    // Cannot disable both, so toggle audio on if we disable video
                     this._extension._settings.set_boolean("play-audio", true);
                 }
                 this._extension._settings.set_boolean("show-video", !currentVideo);
@@ -239,7 +149,6 @@ export const Indicator = GObject.registerClass(
                 const currentVideo = this._extension._settings.get_boolean("show-video");
                 const currentAudio = this._extension._settings.get_boolean("play-audio");
                 if (currentAudio && !currentVideo) {
-                    // Cannot disable both, so toggle video on if we disable audio
                     this._extension._settings.set_boolean("show-video", true);
                 }
                 this._extension._settings.set_boolean("play-audio", !currentAudio);
@@ -251,13 +160,20 @@ export const Indicator = GObject.registerClass(
             controlsBox.add_child(nextButton);
             controlsBox.add_child(this._videoButton);
             controlsBox.add_child(this._audioButton);
+
             controlsItem.add_child(controlsBox);
             this.menu.addMenuItem(controlsItem);
 
+            const wallpaperNameItem = new PopupMenu.PopupMenuItem("Wallpaper", { reactive: false });
+            wallpaperNameItem.label.add_style_class_name("wallpaper-name");
+            wallpaperNameItem.label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+            this.menu.addMenuItem(wallpaperNameItem);
+            this._wallpaperNameLabel = wallpaperNameItem;
+
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-           // Video Controls Section
-            const videoTitle = new PopupMenu.PopupMenuItem("Video", { reactive: false });
+            // Video Controls Section
+            const videoTitle = new PopupMenu.PopupMenuItem("Media Menu", { reactive: false });
             videoTitle.add_style_class_name("title");
             this.menu.addMenuItem(videoTitle);
 
@@ -278,7 +194,6 @@ export const Indicator = GObject.registerClass(
                 x_expand: true,
             });
 
-            // Add both icons, to avoid comlpexity of is playing to switch.
             const playIcon = new St.Icon({
                 icon_name: "media-playback-start-symbolic",
                 style_class: "popup-menu-icon",
@@ -289,6 +204,8 @@ export const Indicator = GObject.registerClass(
             });
             const playPauseBox = new St.BoxLayout({
                 orientation: Clutter.Orientation.HORIZONTAL,
+                reactive: false,
+                can_focus: false,
             });
             playPauseBox.add_child(playIcon);
             playPauseBox.add_child(pauseIcon);
@@ -313,6 +230,31 @@ export const Indicator = GObject.registerClass(
             });
             this._prevVideoButton.connect("clicked", () => {
               this._extension._wallpaper._sendCommand(["add", "chapter", -1]);
+              this._updatechapterName();
+            });
+
+            this._seekBackwardButton = new St.Button({
+                can_focus: true,
+                style_class: "menubutton",
+                child: new St.Icon({
+                    icon_name: "media-seek-backward-symbolic",
+                    style_class: "popup-menu-icon",
+                }),
+            });
+            this._seekBackwardButton.connect("clicked", () => {
+                this._extension._wallpaper._sendCommand(["seek", -10]);
+            });
+
+            this._seekForwardButton = new St.Button({
+                can_focus: true,
+                style_class: "menubutton",
+                child: new St.Icon({
+                    icon_name: "media-seek-forward-symbolic",
+                    style_class: "popup-menu-icon",
+                }),
+            });
+            this._seekForwardButton.connect("clicked", () => {
+                this._extension._wallpaper._sendCommand(["seek", 10]);
             });
 
             this._nextVideoButton = new St.Button({
@@ -325,35 +267,37 @@ export const Indicator = GObject.registerClass(
             });
             this._nextVideoButton.connect("clicked", () => {
               this._extension._wallpaper._sendCommand(["add", "chapter", 1]);
+              this._updatechapterName();
             });
 
             videoControlsBox.add_child(this._prevVideoButton);
+            videoControlsBox.add_child(this._seekBackwardButton);
             videoControlsBox.add_child(this._playPauseButton);
+            videoControlsBox.add_child(this._seekForwardButton);
             videoControlsBox.add_child(this._nextVideoButton);
             videoControlsVBox.add_child(videoControlsBox);
             videoControlsItem.add_child(videoControlsVBox);
             this.menu.addMenuItem(videoControlsItem);
 
+            const chapterName = new PopupMenu.PopupMenuItem("Chapter Name: ", { reactive: false });
+            chapterName.label.add_style_class_name("wallpaper-name");
+            chapterName.label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+            this.menu.addMenuItem(chapterName);
+            this._chapterNameLabel = chapterName;
+
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            const prefsMenu = new PopupMenu.PopupMenuItem("Settings");
-               prefsMenu.connect("activate", () => {
-                   this._extension.openPreferences();
-               });
-             this.menu.addMenuItem(prefsMenu);
+            const prefsMenu = new PopupMenu.PopupMenuItem("Open Media Gallery");
+            prefsMenu.connect("activate", () => {
+                this._extension.openPreferences();
+            });
+            this.menu.addMenuItem(prefsMenu);
 
-             //Future Development to select selectChapters
-             //const selectChapters = new PopupMenu.PopupMenuItem("Settings");
-             //selectChapters.connect("activate", () => {
-             //this._extension._wallpaper._sendCommand(["context-menu"]);
-             //});
-             //this.menu.addMenuItem(selectChapters);
-
-          // By setting to the autostart setting value we determine if it should be running on init.
             this._updateControls(this._extension._settings.get_boolean("autostart"));
         }
 
         destroy() {
+            this._cleanupTickers();
             if (this._settingsSignalId) {
                 this._extension._settings.disconnect(this._settingsSignalId);
                 this._settingsSignalId = null;

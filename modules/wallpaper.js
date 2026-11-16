@@ -4,7 +4,8 @@ import GLib from "gi://GLib";
 
 import { WindowUtils } from "./windowUtils.js";
 import { StaticWallpaper } from "./staticWallpaper.js";
-import { getBackgroundsDir , mpvSocket } from "./utils.js";
+import { getBackgroundsDir } from "./utils.js";
+import { mpvSocket } from "./menuUtils.js";
 
 export class Wallpaper {
     constructor(ext, windowFilter) {
@@ -31,7 +32,9 @@ export class Wallpaper {
         const baseName = filename.substring(0, filename.lastIndexOf("."));
         const thumbPath = GLib.build_filenamev([bgDir, `${baseName}-thumb.jpg`]);
         this._staticWallpaper.set(thumbPath);
-        const socketPath = `/tmp/mpvsocket-${sessionId}`;
+        const socketDir = `/tmp/mpvsocket/${sessionId}`;
+        GLib.mkdir_with_parents(socketDir, 0o700);
+        const socketPath = `${socketDir}/socket`;
         const streamFormat = mediaFormat(filename, videoPath, true);
 
         const command = [

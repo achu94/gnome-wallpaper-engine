@@ -8,7 +8,8 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { StaticWallpaper } from "./staticWallpaper.js";
 import { mediaFormat } from "./mediaWallpaper.js";
-import { getBackgroundsDir , mpvSocket } from "./utils.js";
+import { getBackgroundsDir } from "./utils.js";
+import { mpvSocket , cleanupSocket } from "./menuUtils.js";
 
 const RENDERER_WINDOW_PREFIX = "gwe-wallpaper-";
 
@@ -89,7 +90,9 @@ export class Wallpaper {
 
             const sessionId = GLib.uuid_string_random();
             this._sessionId = sessionId;
-            const socketPath = `/tmp/mpvsocket-${sessionId}`;
+            const socketDir = `/tmp/mpvsocket/${sessionId}`;
+            GLib.mkdir_with_parents(socketDir, 0o700);
+            const socketPath = `${socketDir}/socket`;
             const streamFormat = mediaFormat(filename, videoPath, true);
 
             const argv = [
@@ -144,7 +147,9 @@ export class Wallpaper {
 
         const sessionId = GLib.uuid_string_random();
         this._sessionId = sessionId;
-        const socketPath = `/tmp/mpvsocket-${sessionId}`;
+        const socketDir = `/tmp/mpvsocket/${sessionId}`;
+        GLib.mkdir_with_parents(socketDir, 0o700);
+        const socketPath = `${socketDir}/socket`;
         const streamFormat = mediaFormat(filename, videoPath, true);
         const windowTitle = `${RENDERER_WINDOW_PREFIX}${sessionId}`;
         const argv = [
@@ -337,12 +342,19 @@ export class Wallpaper {
         }
     }
 
-    stop() {
+  stop() {
+       try {
+          cleanupSocket();
+       } catch (e) {
+          console.error(`Failed to delete socket directory: ${e.message}`);
+       }
+
         this._sessionId = null;
         if (this._mapTimeoutId) {
             GLib.source_remove(this._mapTimeoutId);
             this._mapTimeoutId = null;
         }
+
         this._destroyClones();
         this._sourceActor = null;
         if (this._process) this._process.force_exit();

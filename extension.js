@@ -3,7 +3,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { PACKAGE_VERSION } from "resource:///org/gnome/shell/misc/config.js";
 import GLib from "gi://GLib";
 
-import { Indicator } from "./indicator.js";
+import { mediaMenu } from "./modules/mediaMenu.js";
 import { Wallpaper as LegacyWallpaper } from "./modules/wallpaper.js";
 import { Wallpaper as Gnome50Wallpaper } from "./modules/wallpaper50.js";
 import { AutoPause } from "./modules/autoPause.js";
@@ -42,7 +42,7 @@ export default class WallpaperExtension extends Extension {
 
         this._settings = this.getSettings("org.gnome.shell.extensions.gnome-wallpaper-engine");
 
-        this._indicator = null;
+        this._mediaMenu = null;
 
         this._windowFilter = new WindowFilter();
         this._windowFilter.enable();
@@ -52,11 +52,11 @@ export default class WallpaperExtension extends Extension {
             : LegacyWallpaper;
         this._wallpaper = new WallpaperRenderer(this, this._windowFilter);
 
-        this._indicatorSignalId = this._settings.connect(
-            "changed::show-indicator",
-            () => this._updateIndicatorVisibility()
+        this._mediaMenuSignalId = this._settings.connect(
+            "changed::show-mediamenu",
+            () => this._updatemediaMenuVisibility()
         );
-        this._updateIndicatorVisibility();
+        this._updatemediaMenuVisibility();
 
         this._settingsSignalId = this._settings.connect(
             "changed::current-wallpaper",
@@ -84,15 +84,15 @@ export default class WallpaperExtension extends Extension {
         this._autoPause.start();
     }
 
-    _updateIndicatorVisibility() {
-        const show = this._settings.get_boolean("show-indicator");
+    _updatemediaMenuVisibility() {
+        const show = this._settings.get_boolean("show-mediamenu");
 
-        if (show && !this._indicator) {
-            this._indicator = new Indicator(this);
-            Main.panel.addToStatusArea(this.uuid, this._indicator);
-        } else if (!show && this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
+        if (show && !this._mediaMenu) {
+            this._mediaMenu = new mediaMenu(this);
+            Main.panel.addToStatusArea(this.uuid, this._mediaMenu);
+        } else if (!show && this._mediaMenu) {
+            this._mediaMenu.destroy();
+            this._mediaMenu = null;
         }
     }
 
@@ -107,9 +107,9 @@ export default class WallpaperExtension extends Extension {
             this._settingsSignalId = null;
         }
 
-        if (this._indicatorSignalId) {
-            this._settings.disconnect(this._indicatorSignalId);
-            this._indicatorSignalId = null;
+        if (this._mediaMenuSignalId) {
+            this._settings.disconnect(this._mediaMenuSignalId);
+            this._mediaMenuSignalId = null;
         }
 
         if (this._audioSettingSignalId) {
@@ -132,9 +132,9 @@ export default class WallpaperExtension extends Extension {
             this._windowFilter = null;
         }
 
-        if (this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
+        if (this._mediaMenu) {
+            this._mediaMenu.destroy();
+            this._mediaMenu = null;
         }
 
         if (this._autoPause) {

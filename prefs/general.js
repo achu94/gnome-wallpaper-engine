@@ -35,7 +35,7 @@ function buildBehaviorGroup(settings) {
         "Tray Icon",
         "Show icon in the top panel",
         settings,
-        "show-indicator"
+        "show-mediamenu"
     ));
 
 
