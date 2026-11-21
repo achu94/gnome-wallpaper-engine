@@ -1,3 +1,35 @@
+
+<div align="right">
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="center">
+        <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=en">English</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=zh-CN">简体中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=zh-TW">繁體中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=ja">日本語</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=ko">한국어</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=hi">हिन्दी</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=th">ไทย</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=fr">Français</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=de">Deutsch</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=es">Español</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=it">Italiano</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=ru">Русский</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=pt">Português</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=nl">Nederlands</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=pl">Polski</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=ar">العربية</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=fa">فارسی</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=tr">Türkçe</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=vi">Tiếng Việt</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=id">Bahasa Indonesia</a>
+        | <a href="https://openaitx.github.io/view.html?user=achu94&project=gnome-wallpaper-engine&lang=as">অসমীয়া</
+      </div>
+    </div>
+  </details>
+</div>
+
 # 🌌 GNOME Live Wallpaper Engine
 
 > **[Install now on GNOME Extensions](https://extensions.gnome.org/extension/9558/gnome-wallpaper-engine/)**
